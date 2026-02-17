@@ -5524,7 +5524,7 @@ int pci_probe_reset_slot(struct pci_slot *slot)
 EXPORT_SYMBOL_GPL(pci_probe_reset_slot);
 
 /**
- * __pci_reset_slot - Try to reset a PCI slot
+ * pci_try_reset_slot - Try to reset a PCI slot
  * @slot: PCI slot to reset
  *
  * A PCI bus may host multiple slots, each slot may support a reset mechanism
@@ -5538,7 +5538,7 @@ EXPORT_SYMBOL_GPL(pci_probe_reset_slot);
  *
  * Same as above except return -EAGAIN if the slot cannot be locked
  */
-static int __pci_reset_slot(struct pci_slot *slot)
+static int pci_try_reset_slot(struct pci_slot *slot)
 {
 	int rc;
 
@@ -5627,12 +5627,12 @@ int pci_probe_reset_bus(struct pci_bus *bus)
 EXPORT_SYMBOL_GPL(pci_probe_reset_bus);
 
 /**
- * __pci_reset_bus - Try to reset a PCI bus
+ * pci_try_reset_bus - Try to reset a PCI bus
  * @bus: top level PCI bus to reset
  *
  * Same as above except return -EAGAIN if the bus cannot be locked
  */
-int __pci_reset_bus(struct pci_bus *bus)
+int pci_try_reset_bus(struct pci_bus *bus)
 {
 	int rc;
 
@@ -5661,7 +5661,7 @@ int __pci_reset_bus(struct pci_bus *bus)
 int pci_reset_bus(struct pci_dev *pdev)
 {
 	return (!pci_probe_reset_slot(pdev->slot)) ?
-	    __pci_reset_slot(pdev->slot) : __pci_reset_bus(pdev->bus);
+	    pci_try_reset_slot(pdev->slot) : pci_try_reset_bus(pdev->bus);
 }
 EXPORT_SYMBOL_GPL(pci_reset_bus);
 
