@@ -932,6 +932,7 @@
 
 &spdif_tx1 {
 	pinctrl-0 = <&spdif1m2_tx>;
+	pinctrl-names = "default";
 	status = "okay";
 };
 
@@ -1266,6 +1267,7 @@
 
 &uart2 {
 	pinctrl-0 = <&uart2m0_xfer>;
+	pinctrl-names = "default";
 	status = "okay";
 };
 
