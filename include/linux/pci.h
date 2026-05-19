@@ -2011,6 +2011,8 @@ pci_release_mem_regions(struct pci_dev *pdev)
 			    pci_select_bars(pdev, IORESOURCE_MEM));
 }
 
+bool pci_suspend_retains_context(struct pci_dev *pdev);
+
 #else /* CONFIG_PCI is not enabled */
 
 static inline void pci_set_flags(int flags) { }
@@ -2157,6 +2159,11 @@ pci_alloc_irq_vectors(struct pci_dev *dev, unsigned int min_vecs,
 		      unsigned int max_vecs, unsigned int flags)
 {
 	return -ENOSPC;
+}
+
+static inline bool pci_suspend_retains_context(struct pci_dev *pdev)
+{
+	return true;
 }
 #endif /* CONFIG_PCI */
 
