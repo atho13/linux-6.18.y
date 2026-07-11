@@ -219,6 +219,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3568-hlink-ht3.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3568-hinlink-h66k.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3568-hinlink-h68k.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3568-jl-rm01.dtb
+dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3568-lincstation-e1.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3568-lubancat-2.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3568-lyt-t68m.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3568-lz-d3568-v3.dtb
