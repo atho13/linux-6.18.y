@@ -2504,7 +2504,8 @@ brcmf_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		ret = -ENOMEM;
 		goto fail;
 	}
-	bus->msgbuf = kzalloc(sizeof(*bus->msgbuf), GFP_KERNEL);
+	mutex_init(&bus->bus_reset_lock);
+	bus->msgbuf = kzalloc_obj(*bus->msgbuf);
 	if (!bus->msgbuf) {
 		ret = -ENOMEM;
 		kfree(bus);
@@ -2598,6 +2599,11 @@ brcmf_pcie_remove(struct pci_dev *pdev)
 	devinfo->state = BRCMFMAC_PCIE_STATE_DOWN;
 	if (devinfo->ci)
 		brcmf_pcie_intr_disable(devinfo);
+
+	if (devinfo->irq_allocated)
+		synchronize_irq(pdev->irq);
+
+	brcmf_bus_cancel_reset_work(bus);
 
 	brcmf_detach(&pdev->dev);
 	brcmf_free(&pdev->dev);
