@@ -1238,9 +1238,11 @@ static int rk_iommu_probe(struct platform_device *pdev)
 					"rockchip,disable-mmu-reset");
 
 	/*
-	 * iommu clocks should be present for all new devices and devicetrees
-	 * but there are older devicetrees without clocks out in the wild.
-	 * So clocks as optional for the time being.
+	 * Take every clock the devicetree provides.  Most IOMMU instances
+	 * need exactly "aclk" + "iface", but e.g. the RK3576 NPU IOMMUs sit
+	 * behind additional gates (CBUF/DSU) whose clocks must be running
+	 * for register writes to land.  Clocks stay optional because there
+	 * are older devicetrees without clocks out in the wild.
 	 */
 	err = devm_clk_bulk_get_all(dev, &iommu->clocks);
 	if (err == -ENOENT)
