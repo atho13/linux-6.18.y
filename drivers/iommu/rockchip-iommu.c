@@ -1228,7 +1228,7 @@ static int rk_iommu_probe(struct platform_device *pdev)
 		iommu->num_mmu++;
 	}
 	if (iommu->num_mmu == 0)
-		return PTR_ERR(iommu->bases[0]);
+		return -ENODEV;
 
 	iommu->num_irq = platform_irq_count(pdev);
 	if (iommu->num_irq < 0)
