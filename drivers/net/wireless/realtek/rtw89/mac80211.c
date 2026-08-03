@@ -721,14 +721,21 @@ static void rtw89_ops_vif_cfg_changed(struct ieee80211_hw *hw,
 
 	if (changed & BSS_CHANGED_MLD_VALID_LINKS) {
 		struct rtw89_vif_link *cur = rtw89_get_designated_link(rtwvif);
+		u16 mac_id;
 
 		if (RTW89_CHK_FW_FEATURE_GROUP(WITH_RFK_PRE_NOTIFY, &rtwdev->fw))
 			rtw89_chip_rfk_channel(rtwdev, cur);
 
-		if (hweight16(vif->active_links) == 1)
+		if (hweight16(vif->active_links) == 1) {
+			mac_id = cur->mac_id;
 			rtwvif->mlo_mode = RTW89_MLO_MODE_MLSR;
-		else
+		} else {
+			/* Specify for all MAC ID */
+			mac_id = 0xffff;
 			rtwvif->mlo_mode = RTW89_MLO_MODE_EMLSR;
+		}
+
+		rtw89_fw_h2c_tx_history(rtwdev, mac_id);
 	}
 }
 
@@ -1241,12 +1248,19 @@ static int rtw89_ops_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	struct rtw89_dev *rtwdev = hw->priv;
 	struct rtw89_vif *rtwvif = vif_to_rtwvif(vif);
 	struct rtw89_vif_link *rtwvif_link;
+	struct rtw89_hal *hal = &rtwdev->hal;
 	int ret;
 
 	lockdep_assert_wiphy(hw->wiphy);
 
 	if (!RTW89_CHK_FW_FEATURE(SCAN_OFFLOAD, &rtwdev->fw))
 		return 1;
+
+	if (hal->disabled_dm_bitmap & BIT(RTW89_DM_HW_SCAN)) {
+		rtw89_debug(rtwdev, RTW89_DBG_HW_SCAN,
+			    "reject hw scan due to disabled_dm\n");
+		return -EBUSY;
+	}
 
 	if (rtwdev->scanning || rtwvif->offchan)
 		return -EBUSY;

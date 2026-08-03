@@ -4836,6 +4836,7 @@ static int hci_le_set_write_def_data_len_sync(struct hci_dev *hdev)
 static int hci_le_set_default_phy_sync(struct hci_dev *hdev)
 {
 	struct hci_cp_le_set_default_phy cp;
+	int err;
 
 	if (!(hdev->commands[35] & 0x20)) {
 		/* If the command is not supported it means only 1M PHY is
@@ -4863,8 +4864,24 @@ static int hci_le_set_default_phy_sync(struct hci_dev *hdev)
 		cp.rx_phys |= HCI_LE_SET_PHY_CODED;
 	}
 
-	return __hci_cmd_sync_status(hdev, HCI_OP_LE_SET_DEFAULT_PHY,
-				     sizeof(cp), &cp, HCI_CMD_TIMEOUT);
+	err = __hci_cmd_sync_status(hdev, HCI_OP_LE_SET_DEFAULT_PHY,
+				    sizeof(cp), &cp, HCI_CMD_TIMEOUT);
+	if (err == -EBADRQC) {
+		/* The controller advertises the command in its supported
+		 * commands mask but rejects it as an unknown command
+		 * (observed on the MT7668). Fall back to the 1M-only
+		 * defaults exactly as if the command had not been
+		 * advertised, instead of failing the whole init sequence
+		 * and leaving the controller unusable.
+		 */
+		bt_dev_warn(hdev, "LE Set Default PHY rejected as unknown command, using 1M only");
+		hdev->commands[35] &= ~0x20;
+		hdev->le_tx_def_phys = HCI_LE_SET_PHY_1M;
+		hdev->le_rx_def_phys = HCI_LE_SET_PHY_1M;
+		return 0;
+	}
+
+	return err;
 }
 
 static const struct hci_init_stage le_init4[] = {

@@ -57,6 +57,25 @@
 #define RA_MASK_EHT_4SS_MCS0_11	GENMASK_ULL(62, 60)
 #define RA_MASK_EHT_RATES	GENMASK_ULL(62, 12)
 
+#define TX_STATUS_TYPE GENMASK(3, 0)
+#define TX_STATUS_SUBTYPE GENMASK(7, 4)
+#define TX_STATUS_TXCMD GENMASK(29, 24)
+#define TX_STATUS_TXCMD_V1 GENMASK(13, 8)
+#define TX_STATUS_TXCMD_V2 GENMASK(15, 8)
+#define TX_STATUS_TXSC GENMASK(7, 4)
+#define TX_STATUS_TXSC_V1 GENMASK(27, 24)
+#define TX_STATUS_BW GENMASK(17, 16)
+#define TX_STATUS_BW_V1 GENMASK(6, 4)
+#define TX_STATUS_TMAC_TXPWR GENMASK(26, 18)
+#define TX_STATUS_TMAC_TXPWR_V1 GENMASK(16, 8)
+#define TX_STATUS_TX_PATH_EN GENMASK(15, 12)
+#define TX_STATUS_TX_PATH_EN_V1 GENMASK(7, 4)
+#define TX_STATUS_PATH_MAP GENMASK(23, 16)
+#define TX_STATUS_PATH_MAP_V1 GENMASK(15, 8)
+#define TX_STATUS_MAX_MCS GENMASK(7, 4)
+#define TX_STATUS_MAX_MCS_V1 GENMASK(3, 0)
+#define TX_STATUS_STBC BIT(0)
+
 #define CFO_TRK_ENABLE_TH (2 << 2)
 #define CFO_TRK_STOP_TH_4 (30 << 2)
 #define CFO_TRK_STOP_TH_3 (20 << 2)
@@ -139,6 +158,7 @@ enum rtw89_phy_c2h_ra_func {
 	RTW89_PHY_C2H_FUNC_STS_RPT,
 	RTW89_PHY_C2H_FUNC_MU_GPTBL_RPT,
 	RTW89_PHY_C2H_FUNC_TXSTS,
+	RTW89_PHY_C2H_FUNC_TX_HISTORY = 0x4,
 	RTW89_PHY_C2H_FUNC_ACCELERATE_EN = 0x7,
 
 	RTW89_PHY_C2H_FUNC_RA_NUM,
@@ -451,12 +471,20 @@ struct rtw89_ccx_regs {
 	u32 nhm_en_mask;
 	u32 nhm_method;
 	u32 nhm_pwr_method_msk;
+	u32 edcca_clm_rdy;
+	u32 edcca_clm_rdy_mask;
+	u32 edcca_clm_cnt;
+	u32 edcca_clm_cnt_mask;
 };
 
 struct rtw89_physts_regs {
 	u32 setting_addr;
 	u32 dis_trigger_fail_mask;
 	u32 dis_trigger_brk_mask;
+	struct rtw89_reg_def mac_phy_intf_sel;
+	const struct rtw89_reg_def *txpwr;
+	struct rtw89_regs_def tx_info;
+	struct rtw89_regs_def tx_common_ctrl;
 };
 
 struct rtw89_cfo_regs {
@@ -576,28 +604,46 @@ extern const struct rtw89_phy_gen_def rtw89_phy_gen_ax;
 extern const struct rtw89_phy_gen_def rtw89_phy_gen_be;
 extern const struct rtw89_phy_gen_def rtw89_phy_gen_be_v1;
 
-static inline void rtw89_phy_write8(struct rtw89_dev *rtwdev,
-				    u32 addr, u8 data)
+static inline void rtw89_raw_phy_write8(struct rtw89_dev *rtwdev,
+					u32 addr, u8 data)
 {
 	const struct rtw89_phy_gen_def *phy = rtwdev->chip->phy_def;
 
 	rtw89_write8(rtwdev, addr + phy->cr_base, data);
 }
 
-static inline void rtw89_phy_write16(struct rtw89_dev *rtwdev,
-				     u32 addr, u16 data)
+static inline void rtw89_raw_phy_write16(struct rtw89_dev *rtwdev,
+					 u32 addr, u16 data)
 {
 	const struct rtw89_phy_gen_def *phy = rtwdev->chip->phy_def;
 
 	rtw89_write16(rtwdev, addr + phy->cr_base, data);
 }
 
-static inline void rtw89_phy_write32(struct rtw89_dev *rtwdev,
-				     u32 addr, u32 data)
+static inline void rtw89_raw_phy_write32(struct rtw89_dev *rtwdev,
+					 u32 addr, u32 data)
 {
 	const struct rtw89_phy_gen_def *phy = rtwdev->chip->phy_def;
 
 	rtw89_write32(rtwdev, addr + phy->cr_base, data);
+}
+
+static inline void rtw89_phy_write8(struct rtw89_dev *rtwdev,
+				    u32 addr, u8 data)
+{
+	rtwdev->io->phy_write8(rtwdev, addr, data);
+}
+
+static inline void rtw89_phy_write16(struct rtw89_dev *rtwdev,
+				     u32 addr, u16 data)
+{
+	rtwdev->io->phy_write16(rtwdev, addr, data);
+}
+
+static inline void rtw89_phy_write32(struct rtw89_dev *rtwdev,
+				     u32 addr, u32 data)
+{
+	rtwdev->io->phy_write32(rtwdev, addr, data);
 }
 
 static inline void rtw89_phy_write32_set(struct rtw89_dev *rtwdev,

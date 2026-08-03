@@ -227,6 +227,54 @@ static const struct rtw89_edcca_regs rtw8922d_edcca_regs = {
 	.tx_collision_t2r_st_mask	= B_TX_COLLISION_T2R_ST_BE_M,
 };
 
+static const struct rtw89_pmac_regs rtw8922d_pmac_regs = {
+	.cck_txon = {R_CNT_CCKTXON_BE4, B_CNT_CCKTXON},
+	.cck_txen = {R_CNT_CCKTXEN_BE4, B_CNT_CCKTXEN},
+	.cck_cca = {R_CNT_CCK_CCA_BE4, B_CNT_CCK_CCA_BE4},
+	.cck_sfd_gg = {R_SFD_GG_CNT_BE4, B_SFD_GG_CNT},
+	.cck_sig_gg = {R_SIG_GG_CNT_BE4, B_SIG_GG_CNT_V1},
+	.cck_spoofing = {R_SPOOF_CNT_BE4, B_SPOOF_CNT_V1},
+	.cck_brk = {R_BRK_CNT_BE4, B_BRK_CNT},
+	.brk = {R_CNT_BRK_BE4, B_CNT_BRK},
+	.brk_option = {},
+	.search_fail = {R_CNT_SEARCH_FAIL_BE4, B_CNT_SEARCH_FAIL},
+	.lsig_brk_s_th = {R_CNT_LSIG_BRK_S_TH_BE4, B_CNT_LSIG_BRK_S_TH},
+	.lsig_brk_l_th = {R_CNT_LSIG_BRK_L_TH_BE4, B_CNT_LSIG_BRK_L_TH},
+	.rxl_err_parity = {R_CNT_RXL_ERR_PARITY_BE4, B_CNT_RXL_ERR_PARITY},
+	.rxl_err_rate = {R_CNT_RXL_ERR_RATE_BE4, B_CNT_RXL_ERR_RATE},
+	.ofdm_cca = {R_CNT_OFDM_CCA_BE4, B_CNT_OFDM_CCA},
+	.cca_spoofing = {R_CNT_CCA_SPOOFING_BE4, B_CNT_CCA_SPOOFING},
+	.ampdu_miss = {R_CNT_AMPDU_MISS_BE4, B_CNT_AMPDU_MISS},
+	.r1b_rx_rpt_rst = {R_R1B_RX_RPT_RST_BE4, B_R1B_RX_RPT_RST_V1},
+	.r1b_rr_sel = {},
+	.enable_all_cnt = {R_ENABLE_ALL_CNT_BE4, B_ENABLE_ALL_CNT},
+	.rst_all_cnt = {R_RST_ALL_CNT_BE4, B_RST_ALL_CNT},
+	.cck_crc32 = R_CNT_CCK_CRC32_BE4,
+	.cck_crc32_ok_mask = B_CNT_CCK_CRC32OK_BE4,
+	.cck_crc32_fail_mask = B_CNT_CCK_CRC32FAIL_BE4,
+	.ofdm_txon = R_CNT_OFDMTXON_BE4,
+	.ofdm_txon_mask = B_CNT_OFDMTXON,
+	.ofdm_txen_mask = B_CNT_OFDMTXEN,
+	.l_crc = R_CNT_L_CRC_BE4,
+	.l_crc_ok_mask = B_CNT_L_CRC_OK,
+	.l_crc_err_mask = B_CNT_L_CRC_ERR,
+	.ht_crc = R_CNT_HT_CRC_BE4,
+	.ht_crc_ok_mask = B_CNT_HT_CRC_OK,
+	.ht_crc_err_mask = B_CNT_HT_CRC_ERR,
+	.vht_crc = R_CNT_VHT_CRC_BE4,
+	.vht_crc_ok_mask = B_CNT_VHT_CRC_OK,
+	.vht_crc_err_mask = B_CNT_VHT_CRC_ERR,
+	.he_crc = R_CNT_HE_CRC_BE4,
+	.he_crc_ok_mask = B_CNT_HE_CRC_OK,
+	.he_crc_err_mask = B_CNT_HE_CRC_ERR,
+	.eht_crc = R_CNT_EHT_CRC_BE4,
+	.eht_crc_ok_mask = B_CNT_EHT_CRC_OK,
+	.eht_crc_err_mask = B_CNT_EHT_CRC_ERR,
+	.ampdu_crc = R_CNT_AMPDU_RX_CRC32_BE4,
+	.ampdu_crc_ok_mask = B_CNT_AMPDU_RX_CRC32_OK,
+	.ampdu_crc_err_mask = B_CNT_AMPDU_RX_CRC32_ERR,
+};
+
 static const struct rtw89_efuse_block_cfg rtw8922d_efuse_blocks[] = {
 	[RTW89_EFUSE_BLOCK_SYS]			= {.offset = 0x00000, .size = 0x310},
 	[RTW89_EFUSE_BLOCK_RF]			= {.offset = 0x10000, .size = 0x240},
@@ -1943,10 +1991,19 @@ static void rtw8922d_set_digital_pwr_comp(struct rtw89_dev *rtwdev,
 static void rtw8922d_digital_pwr_comp(struct rtw89_dev *rtwdev,
 				      enum rtw89_phy_idx phy_idx)
 {
-	const struct rtw89_chan *chan0 = rtw89_mgnt_chan_get(rtwdev, 0);
-	const struct rtw89_chan *chan1 = rtw89_mgnt_chan_get(rtwdev, 1);
+	const struct rtw89_chan *chan0, *chan1;
+	struct rtw89_entity_conf conf;
 
-	if (rtwdev->mlo_dbcc_mode == MLO_1_PLUS_1_1RF) {
+	rtw89_entity_get_conf(rtwdev, &conf);
+	chan0 = conf.chans[0];
+	chan1 = conf.chans[1];
+
+	if (conf.en_emlsr) {
+		rtw8922d_set_digital_pwr_comp(rtwdev, chan0, 1, RF_PATH_A, RTW89_PHY_0);
+		rtw8922d_set_digital_pwr_comp(rtwdev, chan0, 1, RF_PATH_B, RTW89_PHY_0);
+		rtw8922d_set_digital_pwr_comp(rtwdev, chan1, 1, RF_PATH_A, RTW89_PHY_1);
+		rtw8922d_set_digital_pwr_comp(rtwdev, chan1, 1, RF_PATH_B, RTW89_PHY_1);
+	} else if (rtwdev->mlo_dbcc_mode == MLO_1_PLUS_1_1RF) {
 		rtw8922d_set_digital_pwr_comp(rtwdev, chan0, 0, RF_PATH_A, RTW89_PHY_0);
 		rtw8922d_set_digital_pwr_comp(rtwdev, chan1, 0, RF_PATH_B, RTW89_PHY_1);
 	} else {
@@ -1958,7 +2015,6 @@ static void rtw8922d_digital_pwr_comp(struct rtw89_dev *rtwdev,
 static int rtw8922d_ctrl_mlo(struct rtw89_dev *rtwdev, enum rtw89_mlo_dbcc_mode mode,
 			     bool pwr_comp)
 {
-	const struct rtw89_chan *chan1;
 	u32 reg0, reg1;
 	u8 cck_phy_idx;
 
@@ -2016,8 +2072,10 @@ static int rtw8922d_ctrl_mlo(struct rtw89_dev *rtwdev, enum rtw89_mlo_dbcc_mode 
 		rtw89_write32_mask(rtwdev, reg0, B_BBWRAP_ELMSR_EN_BE4, 0);
 		rtw89_write32_mask(rtwdev, reg1, B_BBWRAP_ELMSR_EN_BE4, 0);
 	} else if ((mode == MLO_1_PLUS_1_1RF) || (mode == DBCC_LEGACY)) {
-		chan1 = rtw89_mgnt_chan_get(rtwdev, 1);
-		cck_phy_idx = chan1->band_type == RTW89_BAND_2G ?
+		struct rtw89_entity_conf conf;
+
+		rtw89_entity_get_conf(rtwdev, &conf);
+		cck_phy_idx = conf.chans[1]->band_type == RTW89_BAND_2G ?
 			      RTW89_PHY_1 : RTW89_PHY_0;
 
 		rtw89_phy_write32_mask(rtwdev, R_SYS_DBCC_BE4,
@@ -2322,11 +2380,15 @@ static void rtw8922d_rfk_tssi(struct rtw89_dev *rtwdev,
 static void rtw8922d_rfk_channel(struct rtw89_dev *rtwdev,
 				 struct rtw89_vif_link *rtwvif_link)
 {
+	struct ieee80211_vif *vif = rtwvif_to_vif(rtwvif_link->rtwvif);
 	enum rtw89_chanctx_idx chanctx_idx = rtwvif_link->chanctx_idx;
 	const struct rtw89_chan *chan = rtw89_chan_get(rtwdev, chanctx_idx);
 	enum rtw89_phy_idx phy_idx = rtwvif_link->phy_idx;
 	u8 phy_map = rtw89_btc_phymap(rtwdev, phy_idx, RF_AB, chanctx_idx);
 	u32 tx_en;
+
+	if (ieee80211_vif_is_mld(vif))
+		rtw8922d_chlk_ktbl_ctl_mld(rtwdev, phy_idx, true);
 
 	rtw89_btc_ntfy_wl_rfk(rtwdev, phy_map, BTC_WRFKT_CHLK, BTC_WRFK_START);
 	rtw89_chip_stop_sch_tx(rtwdev, phy_idx, &tx_en, RTW89_SCH_TX_SEL_ALL);
@@ -2343,6 +2405,9 @@ static void rtw8922d_rfk_channel(struct rtw89_dev *rtwdev,
 
 	rtw89_chip_resume_sch_tx(rtwdev, phy_idx, tx_en);
 	rtw89_btc_ntfy_wl_rfk(rtwdev, phy_map, BTC_WRFKT_CHLK, BTC_WRFK_STOP);
+
+	if (ieee80211_vif_is_mld(vif))
+		rtw8922d_chlk_ktbl_ctl_mld(rtwdev, phy_idx, false);
 }
 
 static void rtw8922d_rfk_band_changed(struct rtw89_dev *rtwdev,
@@ -2475,9 +2540,11 @@ static void rtw8922d_set_txpwr(struct rtw89_dev *rtwdev,
 static void rtw8922d_set_txpwr_ctrl(struct rtw89_dev *rtwdev,
 				    enum rtw89_phy_idx phy_idx)
 {
-	const struct rtw89_chan *chan = rtw89_mgnt_chan_get(rtwdev, phy_idx);
+	struct rtw89_entity_conf conf;
 
-	rtw8922d_set_txpwr_ref(rtwdev, chan, phy_idx);
+	rtw89_entity_get_conf(rtwdev, &conf);
+
+	rtw8922d_set_txpwr_ref(rtwdev, conf.chans[phy_idx], phy_idx);
 }
 
 static void rtw8922d_ctrl_trx_path(struct rtw89_dev *rtwdev,
@@ -2948,7 +3015,7 @@ const struct rtw89_chip_info rtw8922d_chip_info = {
 	.max_rx_agg_num		= 256,
 	.dis_2g_40m_ul_ofdma	= false,
 	.rsvd_ple_ofst		= 0x5f800,
-	.hfc_param_ini		= {rtw8922d_hfc_param_ini_pcie, NULL, NULL},
+	.hfc_param_ini		= {rtw8922d_hfc_param_ini_pcie, NULL, NULL, NULL},
 	.dle_mem		= {rtw8922d_dle_mem_pcie, NULL, NULL, NULL},
 	.wde_qempty_acq_grpnum	= 8,
 	.wde_qempty_mgq_grpsel	= 8,
@@ -2986,9 +3053,10 @@ const struct rtw89_chip_info rtw8922d_chip_info = {
 	.support_tas		= false,
 	.support_sar_by_ant	= true,
 	.support_noise		= false,
+	.support_fw_cmd_ofld	= false,
 	.ul_tb_waveform_ctrl	= false,
 	.ul_tb_pwr_diff		= false,
-	.rx_freq_frome_ie	= false,
+	.rx_freq_from_ie	= false,
 	.hw_sec_hdr		= true,
 	.hw_mgmt_tx_encrypt	= true,
 	.hw_tkip_crypto		= true,
@@ -3065,6 +3133,7 @@ const struct rtw89_chip_info rtw8922d_chip_info = {
 				  BIT(RTW89_DMA_ACH5) | BIT(RTW89_DMA_ACH7) |
 				  BIT(RTW89_DMA_B0HI) | BIT(RTW89_DMA_B1HI),
 	.edcca_regs		= &rtw8922d_edcca_regs,
+	.pmac_regs		= &rtw8922d_pmac_regs,
 #ifdef CONFIG_PM
 	.wowlan_stub		= &rtw_wowlan_stub_8922d,
 #endif
