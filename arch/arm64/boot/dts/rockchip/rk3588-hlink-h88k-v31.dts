@@ -275,6 +275,7 @@
 		regulator-max-microvolt = <3300000>;
 		regulator-always-on;
 		regulator-boot-on;
+		startup-delay-us = <10000>;
 		vin-supply = <&vcc4v0_sys>;
 	};
 
@@ -285,7 +286,7 @@
 		regulator-max-microvolt = <3300000>;
 		enable-active-high;
 		gpios = <&gpio3 RK_PD5 GPIO_ACTIVE_HIGH>;
-		startup-delay-us = <100000>;
+		startup-delay-us = <10000>;
 		vin-supply = <&vcc3v3_sys>;
 	};
 
@@ -698,8 +699,6 @@
  * H88K v3.1: pcie2x1l0 is M.2 (A+E Key) socket for WiFi/Bluetooth
  */
 &pcie2x1l0 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pcie2_0_rst>;
 	reset-gpios = <&gpio0 RK_PB0 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 	vpcie3v3-supply = <&vcc3v3_sys>;
@@ -711,8 +710,6 @@
  * H88K V3.1: pcie2x1l1 used for rtl8125b
  */
 &pcie2x1l1 {
-        pinctrl-names = "default";
-        pinctrl-0 = <&pcie2_1_rst>;
 	reset-gpios = <&gpio4 RK_PA2 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 	vpcie3v3-supply = <&vcc3v3_pcie20>;
@@ -745,8 +742,6 @@
 
 /* rtl8125b eth0 */
 &pcie2x1l2 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pcie2_2_rst>;
 	reset-gpios = <&gpio4 RK_PA5 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 	vpcie3v3-supply = <&vcc3v3_pcie20>;
@@ -778,7 +773,6 @@
 };
 
 &pcie30phy {
-	data-lanes = <1 1 1 1>; 
 	status = "okay";
 };
 
@@ -787,8 +781,6 @@
  * H88K v3.1: pcie3x4 is M.2 (M Key) socket for NVME ssd
  */
 &pcie3x4 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pcie3_rst>;
 	reset-gpios = <&gpio4 RK_PB6 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 	vpcie3v3-supply = <&vcc3v3_pcie30>;
@@ -893,26 +885,6 @@
 
 		modem_reset_pin: modem-reset-pin {
 			rockchip,pins = <4 RK_PC6 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-	};
-
-	pcie2 {
-		pcie2_0_rst: pcie2-0-rst {
-			rockchip,pins = <0 RK_PB0 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-
-		pcie2_1_rst: pcie2-1-rst {
-			rockchip,pins = <4 RK_PB2 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-
-		pcie2_2_rst: pcie2-2-rst {
-			rockchip,pins = <4 RK_PA5 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-	};
-
-	pcie3 {
-		pcie3_rst: pcie3-rst {
-			rockchip,pins = <4 RK_PB6 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
