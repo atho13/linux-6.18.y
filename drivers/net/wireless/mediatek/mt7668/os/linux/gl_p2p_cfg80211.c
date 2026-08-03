@@ -1916,7 +1916,8 @@ int mtk_p2p_cfg80211_disassoc(struct wiphy *wiphy, struct net_device *dev, struc
 
 int mtk_p2p_cfg80211_remain_on_channel(struct wiphy *wiphy,
 				       struct wireless_dev *wdev,
-				       struct ieee80211_channel *chan, unsigned int duration, u64 *cookie)
+				       struct ieee80211_channel *chan, unsigned int duration, u64 *cookie,
+				       const u8 *rx_addr)
 {
 	INT_32 i4Rslt = -EINVAL;
 	P_GLUE_INFO_T prGlueInfo = (P_GLUE_INFO_T) NULL;
