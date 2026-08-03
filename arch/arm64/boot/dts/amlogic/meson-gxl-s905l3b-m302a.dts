@@ -51,3 +51,14 @@
 &hdmi_tx {
 	reg = <0x0 0xda800000 0x0 0x10000>;
 };
+
+/* MT7668RSN SDIO WiFi + Bluetooth combo chip. */
+&sd_emmc_a {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	mt7668: wifi@1 {
+		compatible = "mediatek,mt7668";
+		reg = <1>;
+	};
+};
