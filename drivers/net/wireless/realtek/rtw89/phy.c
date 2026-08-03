@@ -7085,9 +7085,20 @@ static void rtw89_physts_enable_hdr_2(struct rtw89_dev *rtwdev, enum rtw89_phy_i
 static void __rtw89_physts_parsing_init(struct rtw89_dev *rtwdev,
 					enum rtw89_phy_idx phy_idx)
 {
+	const struct rtw89_phy_gen_def *phy = rtwdev->chip->phy_def;
 	const struct rtw89_chip_info *chip = rtwdev->chip;
+	u32 monitor_mode_mu_ies = 0;
+	u32 monitor_mode_su_ies = 0;
 	u32 val;
 	u8 i;
+
+	if (rtwdev->hw->conf.flags & IEEE80211_CONF_MONITOR) {
+		monitor_mode_mu_ies = BIT(RTW89_PHYSTS_IE09_FTR_0);
+		if (phy->physt_gen < 2)
+			monitor_mode_mu_ies |= BIT(RTW89_PHYSTS_IE10_FTR_PLCP_EXT);
+
+		monitor_mode_su_ies = BIT(RTW89_PHYSTS_IE09_FTR_0);
+	}
 
 	rtw89_physts_enable_fail_report(rtwdev, false, phy_idx);
 
@@ -7102,6 +7113,7 @@ static void __rtw89_physts_parsing_init(struct rtw89_dev *rtwdev,
 		val = rtw89_physts_get_ie_bitmap(rtwdev, i, phy_idx);
 		if (i == RTW89_HE_MU || i == RTW89_VHT_MU) {
 			val |= BIT(RTW89_PHYSTS_IE13_DL_MU_DEF);
+			val |= monitor_mode_mu_ies;
 		} else if (i == RTW89_TRIG_BASE_PPDU) {
 			val |= BIT(RTW89_PHYSTS_IE13_DL_MU_DEF) |
 			       BIT(RTW89_PHYSTS_IE01_CMN_OFDM);
@@ -7115,11 +7127,14 @@ static void __rtw89_physts_parsing_init(struct rtw89_dev *rtwdev,
 				val |= BIT(RTW89_PHYSTS_IE20_DBG_OFDM_FD_USER_SEG_0);
 		}
 
+		if (i == RTW89_HE_PKT || i == RTW89_VHT_PKT)
+			val |= monitor_mode_su_ies;
+
 		rtw89_physts_set_ie_bitmap(rtwdev, i, val, phy_idx);
 	}
 }
 
-static void rtw89_physts_parsing_init(struct rtw89_dev *rtwdev)
+void rtw89_physts_parsing_init(struct rtw89_dev *rtwdev)
 {
 	__rtw89_physts_parsing_init(rtwdev, RTW89_PHY_0);
 	if (rtwdev->dbcc_en)
@@ -8216,12 +8231,24 @@ void rtw89_phy_dm_init_data(struct rtw89_dev *rtwdev)
 		__rtw89_phy_dm_init_data(rtwdev, bb);
 }
 
+void __rtw89_phy_set_bss_color(struct rtw89_dev *rtwdev, u8 bss_color, u16 aid,
+			       enum rtw89_phy_idx phy_idx)
+{
+	const struct rtw89_chip_info *chip = rtwdev->chip;
+	const struct rtw89_reg_def *bss_clr_vld = &chip->bss_clr_vld;
+
+	rtw89_phy_write32_idx(rtwdev, bss_clr_vld->addr, bss_clr_vld->mask, 0x1,
+			      phy_idx);
+	rtw89_phy_write32_idx(rtwdev, chip->bss_clr_map_reg, B_BSS_CLR_MAP_TGT,
+			      bss_color, phy_idx);
+	rtw89_phy_write32_idx(rtwdev, chip->bss_clr_map_reg, B_BSS_CLR_MAP_STAID,
+			      aid, phy_idx);
+}
+
 void rtw89_phy_set_bss_color(struct rtw89_dev *rtwdev,
 			     struct rtw89_vif_link *rtwvif_link)
 {
 	struct ieee80211_vif *vif = rtwvif_link_to_vif(rtwvif_link);
-	const struct rtw89_chip_info *chip = rtwdev->chip;
-	const struct rtw89_reg_def *bss_clr_vld = &chip->bss_clr_vld;
 	enum rtw89_phy_idx phy_idx = rtwvif_link->phy_idx;
 	struct ieee80211_bss_conf *bss_conf;
 	u8 bss_color;
@@ -8238,12 +8265,7 @@ void rtw89_phy_set_bss_color(struct rtw89_dev *rtwdev,
 
 	rcu_read_unlock();
 
-	rtw89_phy_write32_idx(rtwdev, bss_clr_vld->addr, bss_clr_vld->mask, 0x1,
-			      phy_idx);
-	rtw89_phy_write32_idx(rtwdev, chip->bss_clr_map_reg, B_BSS_CLR_MAP_TGT,
-			      bss_color, phy_idx);
-	rtw89_phy_write32_idx(rtwdev, chip->bss_clr_map_reg, B_BSS_CLR_MAP_STAID,
-			      vif->cfg.aid, phy_idx);
+	__rtw89_phy_set_bss_color(rtwdev, bss_color, vif->cfg.aid, phy_idx);
 }
 
 static bool rfk_chan_validate_desc(const struct rtw89_rfk_chan_desc *desc)
@@ -8948,6 +8970,10 @@ const struct rtw89_phy_gen_def rtw89_phy_gen_ax = {
 	.cr_base = 0x10000,
 	.physt_bmp_start = R_PHY_STS_BITMAP_ADDR_START,
 	.physt_bmp_eht = 0xfc,
+	.physt_ie_len = {16, 32, 24, 24, 8, 8, 8, 8, VAR_LEN, 8, VAR_LEN, 176, VAR_LEN,
+			 VAR_LEN, VAR_LEN, VAR_LEN, VAR_LEN, VAR_LEN, 16, 24, VAR_LEN,
+			 VAR_LEN, VAR_LEN, 0, 24, 24, 24, 24, 32, 32, 32, 32},
+	.physt_gen = 0,
 	.ccx = &rtw89_ccx_regs_ax,
 	.physts = &rtw89_physts_regs_ax,
 	.cfo = &rtw89_cfo_regs_ax,

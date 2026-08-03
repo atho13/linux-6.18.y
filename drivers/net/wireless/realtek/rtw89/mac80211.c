@@ -98,6 +98,9 @@ static int rtw89_ops_config(struct ieee80211_hw *hw, int radio_idx, u32 changed)
 	    !rtwdev->scanning)
 		rtw89_enter_ips(rtwdev);
 
+	if (changed & IEEE80211_CONF_CHANGE_MONITOR)
+		rtw89_physts_parsing_init(rtwdev);
+
 	return 0;
 }
 
@@ -355,6 +358,11 @@ static void rtw89_ops_configure_filter(struct ieee80211_hw *hw,
 			rtwdev->hal.rx_fltr |= B_AX_A_UC_CAM_MATCH;
 		}
 	}
+
+	if (rtwdev->hw->conf.flags & IEEE80211_CONF_MONITOR)
+		rtwdev->hal.rx_fltr |= B_AX_SNIFFER_MODE;
+	else
+		rtwdev->hal.rx_fltr &= ~B_AX_SNIFFER_MODE;
 
 	rx_fltr = rtwdev->hal.rx_fltr;
 

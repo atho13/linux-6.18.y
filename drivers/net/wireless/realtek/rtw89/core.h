@@ -24,6 +24,8 @@ struct rtw89_h2c_rf_tssi;
 struct rtw89_fw_txpwr_track_cfg;
 struct rtw89_phy_rfk_log_fmt;
 struct rtw89_phy_calc_efuse_gain;
+union rtw89_phy_sts_ie09;
+struct rtw89_phy_sts_ie10;
 struct rtw89_debugfs;
 struct rtw89_regd_data;
 struct rtw89_wow_cam_info;
@@ -56,14 +58,17 @@ extern const struct ieee80211_ops rtw89_ops;
 #define RTW89_TX_DIV_RSSI_RAW_TH (2 << RSSI_FACTOR)
 #define DELTA_SWINGIDX_SIZE 30
 
-#define RTW89_RADIOTAP_ROOM_HE sizeof(struct ieee80211_radiotap_he)
+#define RTW89_RADIOTAP_ROOM_VHT sizeof(struct ieee80211_radiotap_vht)
+#define RTW89_RADIOTAP_ROOM_HE (sizeof(struct ieee80211_radiotap_he) + \
+				sizeof(struct ieee80211_radiotap_he_mu))
 #define RTW89_RADIOTAP_ROOM_EHT \
 	(sizeof(struct ieee80211_radiotap_tlv) + \
 	 ALIGN(struct_size((struct ieee80211_radiotap_eht *)0, user_info, 1), 4) + \
 	 sizeof(struct ieee80211_radiotap_tlv) + \
 	 ALIGN(sizeof(struct ieee80211_radiotap_eht_usig), 4))
 #define RTW89_RADIOTAP_ROOM \
-	ALIGN(max(RTW89_RADIOTAP_ROOM_HE, RTW89_RADIOTAP_ROOM_EHT), 64)
+	ALIGN(max3(RTW89_RADIOTAP_ROOM_VHT, RTW89_RADIOTAP_ROOM_HE, \
+		   RTW89_RADIOTAP_ROOM_EHT), 64)
 
 #define RTW89_HTC_MASK_VARIANT GENMASK(1, 0)
 #define RTW89_HTC_VARIANT_HE 3
@@ -840,7 +845,7 @@ struct rtw89_rx_phy_ppdu {
 	u8 mac_id;
 	u8 chan_idx;
 	u8 phy_idx;
-	u8 ie;
+	u8 ie; /* enum rtw89_phy_status_bitmap */
 	u16 rate;
 	u8 rpl_avg;
 	u8 rpl_path[RF_PATH_MAX];
@@ -862,6 +867,8 @@ struct rtw89_rx_phy_ppdu {
 	bool to_self;
 	bool valid;
 	bool hdr_2_en;
+	const union rtw89_phy_sts_ie09 *ie09; /* SIG-A */
+	const struct rtw89_phy_sts_ie10 *ie10; /* SIG-B */
 };
 
 enum rtw89_mac_idx {
@@ -947,6 +954,21 @@ enum rtw89_bandwidth {
 	RTW89_CHANNEL_WIDTH_80_80 = 5,
 	RTW89_CHANNEL_WIDTH_5 = 6,
 	RTW89_CHANNEL_WIDTH_10 = 7,
+};
+
+enum rtw89_rx_ppdu_type {
+	RTW89_RX_PPDU_T_LCCK = 0,
+	RTW89_RX_PPDU_T_SCCK = 1,
+	RTW89_RX_PPDU_T_OFDM = 2,
+	RTW89_RX_PPDU_T_HT = 3,
+	RTW89_RX_PPDU_T_HTGF = 4,
+	RTW89_RX_PPDU_T_VHT_SU = 5,
+	RTW89_RX_PPDU_T_VHT_MU = 6,
+	RTW89_RX_PPDU_T_HE_SU = 7,
+	RTW89_RX_PPDU_T_HE_ERSU = 8,
+	RTW89_RX_PPDU_T_HE_MU = 9,
+	RTW89_RX_PPDU_T_HE_TB = 10,
+	RTW89_RX_PPDU_T_UNKNOWN = 15,
 };
 
 enum rtw89_ps_mode {
@@ -1130,6 +1152,7 @@ struct rtw89_rx_desc_info {
 	bool hw_dec;
 	bool sw_dec;
 	bool addr1_match;
+	bool ampdu;
 	u8 frag;
 	u16 seq;
 	u8 frame_type;

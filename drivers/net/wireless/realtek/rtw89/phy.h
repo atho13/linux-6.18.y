@@ -154,6 +154,9 @@
 #define EDCCA_UNIT_CONVER 128
 #define EDCCA_PWROFST_DEFAULT 18
 
+#define VAR_LEN 0xff
+#define VAR_LEN_UNIT 8
+
 enum rtw89_phy_c2h_ra_func {
 	RTW89_PHY_C2H_FUNC_STS_RPT,
 	RTW89_PHY_C2H_FUNC_MU_GPTBL_RPT,
@@ -573,6 +576,8 @@ struct rtw89_phy_gen_def {
 	u32 cr_base;
 	u32 physt_bmp_start;
 	u32 physt_bmp_eht;
+	u8 physt_ie_len[32];
+	u8 physt_gen;
 	const struct rtw89_ccx_regs *ccx;
 	const struct rtw89_physts_regs *physts;
 	const struct rtw89_cfo_regs *cfo;
@@ -909,6 +914,7 @@ void rtw89_phy_config_rf_reg_v1(struct rtw89_dev *rtwdev,
 void rtw89_phy_dm_init(struct rtw89_dev *rtwdev);
 void rtw89_phy_dm_reinit(struct rtw89_dev *rtwdev);
 void rtw89_phy_dm_init_data(struct rtw89_dev *rtwdev);
+void rtw89_physts_parsing_init(struct rtw89_dev *rtwdev);
 void rtw89_phy_write32_idx(struct rtw89_dev *rtwdev, u32 addr, u32 mask,
 			   u32 data, enum rtw89_phy_idx phy_idx);
 void rtw89_phy_write32_idx_set(struct rtw89_dev *rtwdev, u32 addr, u32 bits,
@@ -1122,6 +1128,8 @@ void rtw89_phy_antdiv_track(struct rtw89_dev *rtwdev);
 void rtw89_phy_antdiv_work(struct wiphy *wiphy, struct wiphy_work *work);
 void rtw89_phy_set_bss_color(struct rtw89_dev *rtwdev,
 			     struct rtw89_vif_link *rtwvif_link);
+void __rtw89_phy_set_bss_color(struct rtw89_dev *rtwdev, u8 bss_color, u16 aid,
+			       enum rtw89_phy_idx phy_idx);
 void rtw89_phy_tssi_ctrl_set_bandedge_cfg(struct rtw89_dev *rtwdev,
 					  enum rtw89_mac_idx mac_idx,
 					  enum rtw89_tssi_bandedge_cfg bandedge_cfg);
