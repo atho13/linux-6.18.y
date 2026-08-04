@@ -259,7 +259,7 @@ static int rga_open(struct file *file)
 		.crop.height = def_height,
 	};
 
-	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+	ctx = kzalloc_obj(*ctx);
 	if (!ctx)
 		return -ENOMEM;
 
