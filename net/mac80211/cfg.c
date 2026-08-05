@@ -1146,9 +1146,6 @@ static int ieee80211_set_fils_discovery(struct ieee80211_sub_if_data *sdata,
 	fd->max_interval = params->max_interval;
 
 	old = sdata_dereference(link->u.ap.fils_discovery, sdata);
-	if (old)
-		kfree_rcu(old, rcu_head);
-
 	if (params->tmpl && params->tmpl_len) {
 		new = kzalloc(sizeof(*new) + params->tmpl_len, GFP_KERNEL);
 		if (!new)
@@ -1159,6 +1156,9 @@ static int ieee80211_set_fils_discovery(struct ieee80211_sub_if_data *sdata,
 	} else {
 		RCU_INIT_POINTER(link->u.ap.fils_discovery, NULL);
 	}
+
+	if (old)
+		kfree_rcu(old, rcu_head);
 
 	*changed |= BSS_CHANGED_FILS_DISCOVERY;
 	return 0;
@@ -1179,8 +1179,6 @@ ieee80211_set_unsol_bcast_probe_resp(struct ieee80211_sub_if_data *sdata,
 	link_conf->unsol_bcast_probe_resp_interval = params->interval;
 
 	old = sdata_dereference(link->u.ap.unsol_bcast_probe_resp, sdata);
-	if (old)
-		kfree_rcu(old, rcu_head);
 
 	if (params->tmpl && params->tmpl_len) {
 		new = kzalloc(sizeof(*new) + params->tmpl_len, GFP_KERNEL);
@@ -1192,6 +1190,9 @@ ieee80211_set_unsol_bcast_probe_resp(struct ieee80211_sub_if_data *sdata,
 	} else {
 		RCU_INIT_POINTER(link->u.ap.unsol_bcast_probe_resp, NULL);
 	}
+
+	if (old)
+		kfree_rcu(old, rcu_head);
 
 	*changed |= BSS_CHANGED_UNSOL_BCAST_PROBE_RESP;
 	return 0;
@@ -1391,6 +1392,36 @@ ieee80211_calc_ap_he_and_lower(struct cfg80211_beacon_data *params)
 	return IEEE80211_STA_RX_BW_20;
 }
 
+static enum ieee80211_sta_rx_bandwidth
+ieee80211_calc_ap_eht_bw(struct cfg80211_beacon_data *params,
+			 enum ieee80211_sta_rx_bandwidth he_and_lower)
+{
+	const struct ieee80211_eht_operation_info *info;
+
+	if (!params->eht_oper)
+		return he_and_lower;
+
+	info = ieee80211_eht_oper_info(params->eht_oper);
+	if (!info)
+		return he_and_lower;
+
+	switch (u8_get_bits(info->control, IEEE80211_EHT_OPER_CHAN_WIDTH)) {
+	case IEEE80211_EHT_OPER_CHAN_WIDTH_20MHZ:
+		return IEEE80211_STA_RX_BW_20;
+	case IEEE80211_EHT_OPER_CHAN_WIDTH_40MHZ:
+		return IEEE80211_STA_RX_BW_40;
+	case IEEE80211_EHT_OPER_CHAN_WIDTH_80MHZ:
+		return IEEE80211_STA_RX_BW_80;
+	case IEEE80211_EHT_OPER_CHAN_WIDTH_160MHZ:
+		return IEEE80211_STA_RX_BW_160;
+	case IEEE80211_EHT_OPER_CHAN_WIDTH_320MHZ:
+		return IEEE80211_STA_RX_BW_320;
+	}
+
+	/* invalid setting, assume 20 MHz */
+	return IEEE80211_STA_RX_BW_20;
+}
+
 static void ieee80211_update_ap_bandwidth(struct ieee80211_link_data *link,
 					  struct cfg80211_beacon_data *params)
 {
@@ -1415,6 +1446,8 @@ static void ieee80211_update_ap_bandwidth(struct ieee80211_link_data *link,
 		return;
 
 	link->bss_bw.he_and_lower = ieee80211_calc_ap_he_and_lower(params);
+	link->bss_bw.eht = ieee80211_calc_ap_eht_bw(params,
+						    link->bss_bw.he_and_lower);
 
 	chanctx_conf = sdata_dereference(link->conf->chanctx_conf, link->sdata);
 	chanctx = container_of(chanctx_conf, struct ieee80211_chanctx, conf);
@@ -2578,6 +2611,9 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 		memcpy(&sta->deflink.pub->supp_rates,
 		       &nmi_sta->deflink.pub->supp_rates,
 		       sizeof(sta->deflink.pub->supp_rates));
+
+		sta->deflink.pub->agg = nmi_sta->deflink.pub->agg;
+		__ieee80211_sta_recalc_aggregates(sta, 0);
 	}
 
 	/* set the STA state after all sta info from usermode has been set */
@@ -4471,6 +4507,9 @@ static int __ieee80211_csa_finalize(struct ieee80211_link_data *link_data)
 
 	ieee80211_link_info_change_notify(sdata, link_data, changed);
 
+	if (sdata->vif.type == NL80211_IFTYPE_AP)
+		ieee80211_uhr_disable_dbe_all_stas(link_data);
+
 	ieee80211_vif_unblock_queues_csa(sdata);
 
 	err = drv_post_channel_switch(link_data);
@@ -4593,8 +4632,6 @@ static int ieee80211_set_csa_beacon(struct ieee80211_link_data *link_data,
 			    cfg80211_get_chandef_type(&sdata->u.ibss.chandef))
 				return -EINVAL;
 			break;
-		case NL80211_CHAN_WIDTH_5:
-		case NL80211_CHAN_WIDTH_10:
 		case NL80211_CHAN_WIDTH_20_NOHT:
 		case NL80211_CHAN_WIDTH_20:
 			break;

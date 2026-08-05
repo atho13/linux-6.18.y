@@ -253,8 +253,11 @@ int ieee80211_nan_set_local_sched(struct ieee80211_sub_if_data *sdata,
 {
 	struct ieee80211_nan_channel *sched_idx_to_chan[IEEE80211_NAN_MAX_CHANNELS] = {};
 	struct ieee80211_nan_sched_cfg *sched_cfg = &sdata->vif.cfg.nan_sched;
-	struct ieee80211_nan_sched_cfg backup_sched;
+	struct ieee80211_nan_sched_cfg *backup_sched __free(kfree) = kmalloc_obj(*backup_sched);
 	int ret;
+
+	if (!backup_sched)
+		return -ENOMEM;
 
 	if (sched->n_channels > IEEE80211_NAN_MAX_CHANNELS)
 		return -EOPNOTSUPP;
@@ -275,13 +278,13 @@ int ieee80211_nan_set_local_sched(struct ieee80211_sub_if_data *sdata,
 
 	bitmap_zero(sdata->u.nan.removed_channels, IEEE80211_NAN_MAX_CHANNELS);
 
-	memcpy(backup_sched.schedule, sched_cfg->schedule,
-	       sizeof(backup_sched.schedule));
-	memcpy(backup_sched.channels, sched_cfg->channels,
-	       sizeof(backup_sched.channels));
-	memcpy(backup_sched.avail_blob, sched_cfg->avail_blob,
-	       sizeof(backup_sched.avail_blob));
-	backup_sched.avail_blob_len = sched_cfg->avail_blob_len;
+	memcpy(backup_sched->schedule, sched_cfg->schedule,
+	       sizeof(backup_sched->schedule));
+	memcpy(backup_sched->channels, sched_cfg->channels,
+	       sizeof(backup_sched->channels));
+	memcpy(backup_sched->avail_blob, sched_cfg->avail_blob,
+	       sizeof(backup_sched->avail_blob));
+	backup_sched->avail_blob_len = sched_cfg->avail_blob_len;
 
 	memcpy(sched_cfg->avail_blob, sched->nan_avail_blob,
 	       sched->nan_avail_blob_len);
@@ -380,17 +383,17 @@ err:
 		if (!chan_def->chan)
 			continue;
 
-		if (!cfg80211_chandef_identical(&backup_sched.channels[i].chanreq.oper,
+		if (!cfg80211_chandef_identical(&backup_sched->channels[i].chanreq.oper,
 						chan_def))
 			ieee80211_nan_remove_channel(sdata,
 						     &sched_cfg->channels[i]);
 	}
 
 	/* Re-add all backed up channels */
-	for (int i = 0; i < ARRAY_SIZE(backup_sched.channels); i++) {
+	for (int i = 0; i < ARRAY_SIZE(backup_sched->channels); i++) {
 		struct ieee80211_nan_channel *chan = &sched_cfg->channels[i];
 
-		*chan = backup_sched.channels[i];
+		*chan = backup_sched->channels[i];
 
 		/*
 		 * For deferred update, no channels were removed and the channel
@@ -421,11 +424,11 @@ err:
 		}
 	}
 
-	memcpy(sched_cfg->schedule, backup_sched.schedule,
-	       sizeof(backup_sched.schedule));
-	memcpy(sched_cfg->avail_blob, backup_sched.avail_blob,
-	       sizeof(backup_sched.avail_blob));
-	sched_cfg->avail_blob_len = backup_sched.avail_blob_len;
+	memcpy(sched_cfg->schedule, backup_sched->schedule,
+	       sizeof(backup_sched->schedule));
+	memcpy(sched_cfg->avail_blob, backup_sched->avail_blob,
+	       sizeof(backup_sched->avail_blob));
+	sched_cfg->avail_blob_len = backup_sched->avail_blob_len;
 	sched_cfg->deferred = false;
 	bitmap_zero(sdata->u.nan.removed_channels, IEEE80211_NAN_MAX_CHANNELS);
 
@@ -712,7 +715,7 @@ out:
 	return ret;
 }
 
-static void
+void
 ieee80211_nan_evacuate_channel(struct ieee80211_sub_if_data *sdata,
 			       struct ieee80211_nan_channel *nan_channel)
 {
@@ -754,33 +757,20 @@ ieee80211_nan_evacuate_channel(struct ieee80211_sub_if_data *sdata,
 		ieee80211_free_chanctx(sdata->local, ctx, false);
 }
 
-bool ieee80211_nan_try_evacuate(struct ieee80211_hw *hw,
-				struct ieee80211_chanctx_conf *conf)
+struct ieee80211_nan_channel *
+ieee80211_nan_find_evac_chan(struct ieee80211_local *local,
+			     struct ieee80211_sub_if_data *sdata,
+			     struct ieee80211_chanctx *ctx)
 {
-	struct ieee80211_sub_if_data *sdata = NULL, *tmp;
-	struct ieee80211_local *local = hw_to_local(hw);
-	struct ieee80211_nan_channel *evac_chan = NULL;
 	struct ieee80211_nan_sched_cfg *sched_cfg;
-	struct ieee80211_chanctx *ctx = NULL;
+	struct ieee80211_nan_channel *evac_chan = NULL;
 	int min_slot_count = INT_MAX;
 	int usable_channels = 0;
 
 	lockdep_assert_wiphy(local->hw.wiphy);
 
-	if (conf)
-		ctx = container_of(conf, struct ieee80211_chanctx, conf);
-
-	/* Find the NAN interface - there can only be one */
-	list_for_each_entry(tmp, &local->interfaces, list) {
-		if (ieee80211_sdata_running(tmp) &&
-		    tmp->vif.type == NL80211_IFTYPE_NAN) {
-			sdata = tmp;
-			break;
-		}
-	}
-
-	if (!sdata)
-		return false;
+	if (WARN_ON(sdata->vif.type != NL80211_IFTYPE_NAN))
+		return NULL;
 
 	sched_cfg = &sdata->vif.cfg.nan_sched;
 
@@ -823,10 +813,34 @@ bool ieee80211_nan_try_evacuate(struct ieee80211_hw *hw,
 
 	/* No suitable NAN channel found */
 	if (!evac_chan)
-		return false;
+		return NULL;
 
 	/* NAN needs at least one remaining usable channel after evacuation */
 	if (usable_channels < 2)
+		return NULL;
+
+	return evac_chan;
+}
+
+bool ieee80211_nan_try_evacuate(struct ieee80211_hw *hw,
+				struct ieee80211_chanctx_conf *conf)
+{
+	struct ieee80211_local *local = hw_to_local(hw);
+	struct ieee80211_sub_if_data *sdata =
+		ieee80211_find_nan_sdata(local);
+	struct ieee80211_nan_channel *evac_chan;
+	struct ieee80211_chanctx *ctx = NULL;
+
+	lockdep_assert_wiphy(local->hw.wiphy);
+
+	if (!sdata)
+		return false;
+
+	if (conf)
+		ctx = container_of(conf, struct ieee80211_chanctx, conf);
+
+	evac_chan = ieee80211_nan_find_evac_chan(local, sdata, ctx);
+	if (!evac_chan)
 		return false;
 
 	ieee80211_nan_evacuate_channel(sdata, evac_chan);

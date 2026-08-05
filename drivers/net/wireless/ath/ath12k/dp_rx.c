@@ -1142,7 +1142,8 @@ static void ath12k_dp_rx_h_undecap_eth(struct ath12k_pdev_dp *dp_pdev,
 void ath12k_dp_rx_h_undecap(struct ath12k_pdev_dp *dp_pdev, struct sk_buff *msdu,
 			    enum hal_encrypt_type enctype,
 			    bool decrypted,
-			    struct hal_rx_desc_data *rx_info)
+			    struct hal_rx_desc_data *rx_info,
+			    struct ath12k_dp_peer *peer)
 {
 	enum ath12k_dp_rx_decap_type decap_type = rx_info->decap_type;
 	struct ethhdr *ehdr;
@@ -1161,6 +1162,13 @@ void ath12k_dp_rx_h_undecap(struct ath12k_pdev_dp *dp_pdev, struct sk_buff *msdu
 		/* mac80211 allows fast path only for authorized STA */
 		if (ehdr->h_proto == cpu_to_be16(ETH_P_PAE)) {
 			ATH12K_SKB_RXCB(msdu)->is_eapol = true;
+			ath12k_dp_rx_h_undecap_eth(dp_pdev, msdu, enctype, rx_info,
+						   decap_type);
+			break;
+		}
+
+		if (peer && !peer->use_4addr &&
+		    rx_info->is_from_ds && rx_info->is_to_ds) {
 			ath12k_dp_rx_h_undecap_eth(dp_pdev, msdu, enctype, rx_info,
 						   decap_type);
 			break;
@@ -1202,8 +1210,7 @@ ath12k_dp_rx_h_find_link_peer(struct ath12k_pdev_dp *dp_pdev, struct sk_buff *ms
 
 	lockdep_assert_held(&dp->dp_lock);
 
-	if (rxcb->peer_id)
-		peer = ath12k_dp_link_peer_find_by_peerid(dp_pdev, rxcb->peer_id);
+	peer = ath12k_dp_link_peer_find_by_peerid(dp_pdev, rxcb->peer_id);
 
 	if (peer)
 		return peer;
@@ -1377,10 +1384,9 @@ void ath12k_dp_rx_deliver_msdu(struct ath12k_pdev_dp *dp_pdev, struct napi_struc
 
 	pubsta = peer ? peer->sta : NULL;
 
-	if (pubsta && pubsta->valid_links) {
-		status->link_valid = 1;
-		status->link_id = peer->hw_links[rxcb->hw_link_id];
-	}
+	status->link_valid = 0;
+	if (pubsta && pubsta->valid_links)
+		ath12k_hw_set_rx_link_id(dp->hw_params, peer, rxcb, status);
 
 	ath12k_dbg(dp->ab, ATH12K_DBG_DATA,
 		   "rx skb %p len %u peer %pM %d %s sn %u %s%s%s%s%s%s%s%s%s%s rate_idx %u vht_nss %u freq %u band %u flag 0x%x fcs-err %i mic-err %i amsdu-more %i\n",

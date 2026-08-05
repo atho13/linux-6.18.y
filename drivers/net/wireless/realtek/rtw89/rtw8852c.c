@@ -565,9 +565,9 @@ static void rtw8852c_efuse_parsing_tssi(struct rtw89_dev *rtwdev,
 static bool _decode_efuse_gain(u8 data, s8 *high, s8 *low)
 {
 	if (high)
-		*high = sign_extend32(FIELD_GET(GENMASK(7,  4), data), 3);
+		*high = FIELD_GET_SIGNED(GENMASK(7, 4), data);
 	if (low)
-		*low = sign_extend32(FIELD_GET(GENMASK(3,  0), data), 3);
+		*low = FIELD_GET_SIGNED(GENMASK(3, 0), data);
 
 	return data != 0xff;
 }
@@ -621,6 +621,15 @@ static void rtw8852c_efuse_parsing_gain_offset(struct rtw89_dev *rtwdev,
 	gain->offset_valid = valid;
 }
 
+static void rtw8852c_efuse_copy_sn_uuid_usb(struct rtw89_dev *rtwdev,
+					    const struct rtw8852c_efuse *map)
+{
+	struct rtw89_efuse *efuse = &rtwdev->efuse;
+
+	memcpy(efuse->sn, map->u.sn, sizeof(efuse->sn));
+	memcpy(efuse->uuid, map->u.uuid, sizeof(efuse->uuid));
+}
+
 static int rtw8852c_read_efuse(struct rtw89_dev *rtwdev, u8 *log_map,
 			       enum rtw89_efuse_block block)
 {
@@ -640,6 +649,7 @@ static int rtw8852c_read_efuse(struct rtw89_dev *rtwdev, u8 *log_map,
 		break;
 	case RTW89_HCI_TYPE_USB:
 		ether_addr_copy(efuse->addr, map->u.mac_addr);
+		rtw8852c_efuse_copy_sn_uuid_usb(rtwdev, map);
 		break;
 	default:
 		return -ENOTSUPP;
@@ -3091,6 +3101,7 @@ static const struct rtw89_chip_ops rtw8852c_chip_ops = {
 	.read_efuse		= rtw8852c_read_efuse,
 	.read_phycap		= rtw8852c_read_phycap,
 	.fem_setup		= NULL,
+	.data_setup		= NULL,
 	.rfe_gpio		= NULL,
 	.rfk_hw_init		= NULL,
 	.rfk_init		= rtw8852c_rfk_init,
@@ -3173,14 +3184,16 @@ const struct rtw89_chip_info rtw8852c_chip_info = {
 	.max_rx_agg_num		= 64,
 	.dis_2g_40m_ul_ofdma	= false,
 	.rsvd_ple_ofst		= 0x6f800,
-	.hfc_param_ini		= {rtw8852c_hfc_param_ini_pcie,
+	.qta_def = {
+		.hfc_param_ini	= {rtw8852c_hfc_param_ini_pcie,
 				   rtw8852c_hfc_param_ini_usb,
 				   rtw8852c_hfc_param_ini_usb,
 				   NULL},
-	.dle_mem		= {rtw8852c_dle_mem_pcie,
+		.dle_mem	= {rtw8852c_dle_mem_pcie,
 				   rtw8852c_dle_mem_usb2,
 				   rtw8852c_dle_mem_usb3,
 				   NULL},
+	},
 	.wde_qempty_acq_grpnum	= 16,
 	.wde_qempty_mgq_grpsel	= 16,
 	.rf_base_addr		= {0xe000, 0xf000},

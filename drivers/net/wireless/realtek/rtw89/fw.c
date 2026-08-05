@@ -931,8 +931,8 @@ static const struct __fw_feat_cfg fw_feat_tbl[] = {
 	__CFG_FW_FEAT(RTL8922A, ge, 0, 35, 84, 0, RFK_PRE_NOTIFY_MCC_V1),
 	__CFG_FW_FEAT(RTL8922A, lt, 0, 35, 84, 0, ADDR_CAM_V0),
 	__CFG_FW_FEAT(RTL8922A, ge, 0, 35, 92, 0, TX_HISTORY_V1),
-	__CFG_FW_FEAT(RTL8922A, ge, 0, 35, 97, 0, SIM_SER_L0L1_BY_HALT_H2C),
 	__CFG_FW_FEAT(RTL8922A, ge, 0, 35, 100, 0, SER_POST_RECOVER_DMAC),
+	__CFG_FW_FEAT(RTL8922A, ge, 0, 35, 108, 0, SIM_SER_L0L1_BY_HALT_H2C),
 };
 
 static void rtw89_fw_iterate_feature_cfg(struct rtw89_fw_info *fw,
@@ -1209,11 +1209,16 @@ int rtw89_build_txpwr_trk_tbl_from_elm(struct rtw89_dev *rtwdev,
 {
 	struct rtw89_fw_elm_info *elm_info = &rtwdev->fw.elm_info;
 	const struct rtw89_chip_info *chip = rtwdev->chip;
+	struct rtw89_hal *hal = &rtwdev->hal;
+	u16 aid = le16_to_cpu(elm->aid);
 	u32 needed_bitmap = 0;
 	u32 offset = 0;
 	int subband;
 	u32 bitmap;
 	int type;
+
+	if (aid && aid != hal->aid)
+		return 1;
 
 	if (chip->support_bands & BIT(NL80211_BAND_6GHZ))
 		needed_bitmap |= RTW89_DEFAULT_NEEDED_FW_TXPWR_TRK_6GHZ;
@@ -1418,12 +1423,18 @@ int rtw89_build_tx_comp_from_elm(struct rtw89_dev *rtwdev,
 				 const union rtw89_fw_element_arg arg)
 {
 	struct rtw89_fw_elm_info *elm_info = &rtwdev->fw.elm_info;
+	struct rtw89_efuse *efuse = &rtwdev->efuse;
 	struct rtw89_hal *hal = &rtwdev->hal;
+	u8 rfe_type;
 	u16 aid;
 
 	aid = le16_to_cpu(elm->aid);
+	rfe_type = elm->u.tx_comp.rfe_type;
+
 	if (aid && aid != hal->aid)
 		return 1; /* ignore if aid not matched */
+	else if (rfe_type && rfe_type != efuse->rfe_type)
+		return 1; /* ignore if rfe_type not matched */
 	else if (elm_info->tx_comp)
 		return 1; /* ignore if an element is existing */
 
@@ -2958,6 +2969,8 @@ static struct sk_buff *rtw89_arp_response_get(struct rtw89_dev *rtwdev,
 
 	ether_addr_copy(arp_skb->sender_hw, rtwvif_link->mac_addr);
 	arp_skb->sender_ip = rtwvif->ip_addr;
+	ether_addr_copy(arp_skb->target_hw, rtwvif_link->mac_addr);
+	arp_skb->target_ip = rtwvif->ip_addr;
 
 	return skb;
 }
@@ -8293,6 +8306,12 @@ void rtw89_fw_st_dbg_dump(struct rtw89_dev *rtwdev)
 	rtw89_info(rtwdev, "FW MISC = 0x%x\n", rtw89_read32(rtwdev, R_AX_UDM3));
 	rtw89_info(rtwdev, "R_AX_HALT_C2H = 0x%x\n",
 		   rtw89_read32(rtwdev, R_AX_HALT_C2H));
+	rtw89_info(rtwdev, "R_AX_HALT_C2H_CTRL = 0x%x\n",
+		   rtw89_read32(rtwdev, R_AX_HALT_C2H_CTRL));
+	rtw89_info(rtwdev, "R_AX_HALT_H2C = 0x%x\n",
+		   rtw89_read32(rtwdev, R_AX_HALT_H2C));
+	rtw89_info(rtwdev, "R_AX_HALT_H2C_CTRL = 0x%x\n",
+		   rtw89_read32(rtwdev, R_AX_HALT_H2C_CTRL));
 	rtw89_info(rtwdev, "R_AX_SER_DBG_INFO = 0x%x\n",
 		   rtw89_read32(rtwdev, R_AX_SER_DBG_INFO));
 
@@ -9611,7 +9630,7 @@ int rtw89_fw_h2c_keep_alive(struct rtw89_dev *rtwdev, struct rtw89_vif_link *rtw
 
 	if (enable) {
 		ret = rtw89_fw_h2c_add_general_pkt(rtwdev, rtwvif_link,
-						   RTW89_PKT_OFLD_TYPE_NULL_DATA,
+						   RTW89_PKT_OFLD_TYPE_ARP_RSP,
 						   &pkt_id);
 		if (ret)
 			return -EPERM;

@@ -568,8 +568,105 @@ struct rtw89_txpwr_limit_ru_be {
 	s8 ru106_26[RTW89_RU_SEC_NUM_BE];
 };
 
+#define RTW89_RU484_242_SEC_NUM_BE 4
+#define RTW89_RU996_484_SEC_NUM_BE 2
+#define RTW89_RU996_484_242_SEC_NUM_BE 2
+
+struct rtw89_txpwr_limit_large_mru_be {
+	s8 ru484_242[RTW89_NSS_NUM][RTW89_RU484_242_SEC_NUM_BE];
+	s8 ru996_484[RTW89_NSS_NUM][RTW89_RU996_484_SEC_NUM_BE];
+	s8 ru996_484_242[RTW89_NSS_NUM][RTW89_RU996_484_242_SEC_NUM_BE];
+};
+
 struct rtw89_phy_rfk_log_fmt {
 	const struct rtw89_fw_element_hdr *elm[RTW89_PHY_C2H_RFK_LOG_FUNC_NUM];
+};
+
+enum rtw89_mdpd_onoff {
+	MDPD_ON = 0,
+	MDPD_OFF = 1,
+};
+
+enum rtw89_oob_dpd_onoff {
+	OOB_DPD_OFF = 0,
+	OOB_DPD_ON = 1,
+};
+
+enum rtw89_cim3k_onoff {
+	CIM3K_ON = 1,
+	CIM3K_OFF = 0,
+};
+
+enum rtw89_cim3k_en_dis {
+	CIM3K_ENABLE = 1,
+	CIM3K_DISABLE = 0,
+};
+
+enum rtw89_rfsi_ctrl_modulation {
+	RFSI_BPSK = 0,
+	RFSI_QPSK = 1,
+	RFSI_16QAM = 2,
+	RFSI_64QAM = 3,
+	RFSI_256QAM = 4,
+	RFSI_1024QAM = 5,
+	RFSI_4096QAM = 6,
+	RFSI_MAX,
+};
+
+enum rtw89_cfir_onoff {
+	CFIR_ON = 1,
+	CFIR_OFF = 0,
+};
+
+enum rtw89_filter_onoff {
+	FILTER_A_ON = 1,
+	FILTER_A_OFF = 0,
+};
+
+#define MAX_TX_RFSI_CTRL_OPT 10
+
+#define _8nibble(n0, n1, n2, n3, n4, n5, n6, n7) \
+	((n0) << 0  | (n1) << 4  | (n2) << 8  | (n3) << 12 | \
+	 (n4) << 16 | (n5) << 20 | (n6) << 24 | (n7) << 28)
+
+#define _qam_comp_code(c) ((((c) & (BIT(15) | BIT(14))) >> 11) | \
+			   (((c) & BIT(12)) >> 10) | \
+			   (((c) & (BIT(9) | BIT(8))) >> 8))
+
+#define _10qam_comp_code(c0, c1, c2, c3, c4, c5, c6, c7, c8, c9) \
+	_qam_comp_code(c0), _qam_comp_code(c1),  _qam_comp_code(c2),  _qam_comp_code(c3), \
+	_qam_comp_code(c4), _qam_comp_code(c5),  _qam_comp_code(c6),  _qam_comp_code(c7), \
+	_qam_comp_code(c8), _qam_comp_code(c9)
+
+struct rtw89_bb_wrap_common_data {
+	struct {
+		struct rtw89_bb_wrap_data_cim3k {
+			u8 th, ow, non_bandedge, bandedge;
+		} cim3k;
+		u32 rfsi_ct_opt[2];
+		u8 pb_tb;
+	} bands[RFSI_CTRL_BAND_NUM];
+	u8 qam_th[6];
+};
+
+struct rtw89_bb_wrap_common_data_gen3 {
+	struct {
+		u8 qam_th[6];
+	} bands[RFSI_CTRL_BAND_NUM];
+	u8 cck_val[2];
+};
+
+struct rtw89_bb_wrap_data {
+	const struct rtw89_bb_wrap_common_data *common;
+	const struct rtw89_bb_wrap_common_data_gen3 *common_gen3;
+	struct {
+		u16 qam_comp_th0[MAX_TX_RFSI_CTRL_OPT];
+		u16 qam_comp_th1[MAX_TX_RFSI_CTRL_OPT]; /* encoded */
+		u16 qam_comp_th2[MAX_TX_RFSI_CTRL_OPT]; /* encoded */
+		u16 qam_comp_ow[MAX_TX_RFSI_CTRL_OPT];
+		u8 oob_dpd_by_cbw[8];
+	} bands[RFSI_CTRL_BAND_NUM];
+	u8 mdpd_by_dbw[4];
 };
 
 struct rtw89_phy_gen_def {
@@ -956,6 +1053,7 @@ static inline void rtw89_phy_bb_wrap_init(struct rtw89_dev *rtwdev)
 }
 
 void rtw89_phy_bb_wrap_set_rfsi_ct_opt(struct rtw89_dev *rtwdev,
+				       enum rtw89_rfsi_ctrl_band ctrl_band,
 				       enum rtw89_phy_idx phy_idx);
 void rtw89_phy_bb_wrap_set_rfsi_bandedge_ch(struct rtw89_dev *rtwdev,
 					    const struct rtw89_chan *chan,

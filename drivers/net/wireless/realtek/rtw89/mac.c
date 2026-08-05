@@ -894,11 +894,12 @@ EXPORT_SYMBOL(rtw89_mac_set_err_status);
 
 static int hfc_reset_param(struct rtw89_dev *rtwdev)
 {
+	const struct rtw89_qta_def *qta_def = rtw89_chip_get_qta_def(rtwdev);
 	const struct rtw89_hfc_param_ini *param_ini, *param_inis;
 	struct rtw89_hfc_param *param = &rtwdev->mac.hfc_param;
 	u8 qta_mode = rtwdev->mac.dle_info.qta_mode;
 
-	param_inis = rtwdev->chip->hfc_param_ini[rtwdev->hci.dle_type];
+	param_inis = qta_def->hfc_param_ini[rtwdev->hci.dle_type];
 	if (!param_inis)
 		return -EINVAL;
 
@@ -1747,6 +1748,7 @@ const struct rtw89_mac_size_set rtw89_mac_size = {
 	.wde_size18_v1 = {RTW89_WDE_PG_64, 0, 640, 0,},
 	/* 8852C PCIE SCC */
 	.wde_size19 = {RTW89_WDE_PG_64, 3328, 0,},
+	.wde_size22_v1 = {RTW89_WDE_PG_128, 384, 0, 0,},
 	.wde_size23 = {RTW89_WDE_PG_64, 1022, 2,},
 	/* 8852B USB2.0/USB3.0 SCC turbo */
 	.wde_size30 = {RTW89_WDE_PG_64, 220, 36,},
@@ -1780,6 +1782,7 @@ const struct rtw89_mac_size_set rtw89_mac_size = {
 	.ple_size22_v1 = {RTW89_PLE_PG_128, 2736, 0, 40960,},
 	/* 8851B USB2.0 SCC turbo */
 	.ple_size27 = {RTW89_PLE_PG_128, 1396, 12,},
+	.ple_size29_v1 = {RTW89_PLE_PG_128, 1895, 182, 49152,},
 	/* 8852B USB3.0 SCC turbo */
 	.ple_size31 = {RTW89_PLE_PG_128, 1392, 16,},
 	/* 8852C USB2.0 */
@@ -1810,6 +1813,7 @@ const struct rtw89_mac_size_set rtw89_mac_size = {
 	.wde_qt18 = {3228, 60, 0, 40,},
 	.wde_qt19_v1 = {613, 6, 0, 20,},
 	.wde_qt23 = {958, 48, 0, 16,},
+	.wde_qt23_v1 = {371, 3, 0, 10,},
 	/* 8852B USB2.0/USB3.0 SCC turbo */
 	.wde_qt30 = {210, 2, 0, 8,},
 	/* 8852C USB2.0 */
@@ -1847,18 +1851,19 @@ const struct rtw89_mac_size_set rtw89_mac_size = {
 	.ple_qt28 = {1040, 0, 32, 48, 43, 13, 208, 0, 62, 14, 24, 0,},
 	/* USB 52C USB3.0 */
 	.ple_qt42 = {1068, 0, 16, 48, 4, 13, 178, 0, 16, 1, 8, 16, 0,},
-	.ple_qt42_v2 = {91, 91, 32, 16, 19, 13, 91, 91, 44, 18, 1, 4, 0, 0,},
 	/* USB 52C USB3.0 */
 	.ple_qt43 = {3068, 0, 32, 48, 4, 13, 178, 0, 16, 1, 8, 16, 0,},
-	.ple_qt43_v2 = {645, 645, 32, 16, 2062, 2056, 2134, 2134, 2087, 2061, 1, 2047, 0, 0,},
 	/* DLFW 52C */
 	.ple_qt44 = {0, 0, 16, 256, 0, 0, 0, 0, 0, 0, 0, 0,},
+	.ple_qt44_v2 = {91, 91, 32, 16, 19, 13, 91, 91, 44, 18, 1, 4, 0, 0,},
 	/* DLFW 52C */
 	.ple_qt45 = {0, 0, 32, 256, 0, 0, 0, 0, 0, 0, 0, 0,},
+	.ple_qt45_v2 = {645, 645, 32, 2055, 2058, 2052, 2132, 2132, 2083, 2057, 1, 2043, 0, 0,},
 	/* 8852C PCIE SCC */
 	.ple_qt46 = {525, 0, 16, 20, 13, 13, 178, 0, 32, 62, 8, 16,},
 	/* 8852C PCIE SCC */
 	.ple_qt47 = {525, 0, 32, 20, 1034, 13, 1199, 0, 1053, 62, 160, 1037,},
+	.ple_qt47_v2 = {0, 0, 32, 2703, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,},
 	.ple_qt57 = {147, 0, 16, 20, 13, 13, 178, 0, 32, 14, 8, 0,},
 	/* PCIE 64 */
 	.ple_qt58 = {147, 0, 16, 20, 157, 13, 229, 0, 172, 14, 24, 0,},
@@ -1866,6 +1871,8 @@ const struct rtw89_mac_size_set rtw89_mac_size = {
 	/* 8851B USB2.0 SCC turbo */
 	.ple_qt61 = {858, 0, 16, 48, 4, 13, 370, 0, 32, 14, 8, 0, 0,},
 	.ple_qt62 = {858, 0, 32, 48, 37, 13, 403, 0, 65, 14, 24, 0, 0,},
+	.ple_qt64_v2 = {91, 91, 32, 16, 19, 13, 93, 93, 44, 34, 1, 4, 0, 0,},
+	.ple_qt65_v2 = {645, 645, 32, 1380, 1383, 1377, 1457, 1457, 1408, 1398, 1, 1368,},
 	/* USB2.0 52C */
 	.ple_qt78 = {1560, 0, 16, 48, 13, 13, 390, 0, 32, 38, 8, 16, 0,},
 	/* USB2.0 52C */
@@ -1886,20 +1893,24 @@ const struct rtw89_mac_size_set rtw89_mac_size = {
 	.rsvd0_size3 = {57344, 0,},
 	.rsvd0_size5 = {32768, 0,},
 	.rsvd0_size6 = {40960, 0,},
+	.rsvd0_size17 = {49152, 0,},
 	.rsvd1_size0 = {587776, 2048,},
 	.rsvd1_size2 = {391168, 2048,},
-	.dle_input3 = {0, 0, 0, 16384, 0, 2048, 0, 0,},
-	.dle_input18 = {128, 128, 11454, 2048, 0, 2048, 24, 24,},
+	.rsvd1_size3 = {315008, 78208,},
+	.dle_input3 = {0, 0, 0, 16384, 0, 2048, 0, 0, 0,},
+	.dle_input20 = {128, 128, 11454, 2048, 0, 2048, 1024, 24, 24,},
+	.dle_input28 = {128, 128, 11454, 2048, 0, 2048, 2048, 24, 24,},
 };
 EXPORT_SYMBOL(rtw89_mac_size);
 
 static const struct rtw89_dle_mem *get_dle_mem_cfg(struct rtw89_dev *rtwdev,
 						   enum rtw89_qta_mode mode)
 {
+	const struct rtw89_qta_def *qta_def = rtw89_chip_get_qta_def(rtwdev);
 	struct rtw89_mac_info *mac = &rtwdev->mac;
 	const struct rtw89_dle_mem *cfg, *cfgs;
 
-	cfgs = rtwdev->chip->dle_mem[rtwdev->hci.dle_type];
+	cfgs = qta_def->dle_mem[rtwdev->hci.dle_type];
 	if (!cfgs)
 		return NULL;
 
@@ -4317,6 +4328,8 @@ int rtw89_mac_partial_init(struct rtw89_dev *rtwdev, bool include_bb)
 		if (ret)
 			return ret;
 	}
+
+	rtw89_mac_fwdl_preconfig(rtwdev);
 
 	ret = rtw89_fw_download(rtwdev, RTW89_FW_NORMAL, include_bb);
 	if (ret)
@@ -7477,6 +7490,7 @@ const struct rtw89_mac_gen_def rtw89_mac_gen_ax = {
 
 	.reset_pwr_state = rtw89_mac_reset_pwr_state_ax,
 	.disable_cpu = rtw89_mac_disable_cpu_ax,
+	.fwdl_preconfig = NULL,
 	.fwdl_enable_wcpu = rtw89_mac_enable_cpu_ax,
 	.fwdl_get_status = rtw89_fw_get_rdy_ax,
 	.fwdl_check_path_ready = rtw89_fwdl_check_path_ready_ax,

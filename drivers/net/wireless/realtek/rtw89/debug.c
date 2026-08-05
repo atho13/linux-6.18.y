@@ -767,6 +767,45 @@ static const struct txpwr_map __txpwr_map_lmt_ru_be = {
 	.addr_to_1ss = 0, /* not support */
 };
 
+static const struct txpwr_ent __txpwr_ent_lmt_ru484_242_be[] = {
+	__GEN_TXPWR_ENT4("RU484_242 1TX     ", "IDX_0 ", "IDX_1 ", "IDX_2 ", "IDX_3 "),
+	__GEN_TXPWR_ENT4("RU484_242 2TX     ", "IDX_0 ", "IDX_1 ", "IDX_2 ", "IDX_3 "),
+};
+
+static const struct txpwr_map __txpwr_map_lmt_ru484_242_be = {
+	.ent = __txpwr_ent_lmt_ru484_242_be,
+	.size = ARRAY_SIZE(__txpwr_ent_lmt_ru484_242_be),
+	.addr_from = R_BE_TXAGC_MAX_1TX_RU484_242_0,
+	.addr_to = R_BE_TXAGC_MAX_1TX_RU484_242_0 + 4,
+	.addr_to_1ss = 0, /* not support */
+};
+
+static const struct txpwr_ent __txpwr_ent_lmt_ru996_484_be[] = {
+	__GEN_TXPWR_ENT2("RU996_484 1TX     ", "IDX_0 ", "IDX_1 "),
+	__GEN_TXPWR_ENT2("RU996_484 2TX     ", "IDX_0 ", "IDX_1 "),
+};
+
+static const struct txpwr_map __txpwr_map_lmt_ru996_484_be = {
+	.ent = __txpwr_ent_lmt_ru996_484_be,
+	.size = ARRAY_SIZE(__txpwr_ent_lmt_ru996_484_be),
+	.addr_from = R_BE_TXAGC_MAX_1TX_RU996_484_0,
+	.addr_to = R_BE_TXAGC_MAX_1TX_RU996_484_0,
+	.addr_to_1ss = 0, /* not support */
+};
+
+static const struct txpwr_ent __txpwr_ent_lmt_ru996_484_242_be[] = {
+	__GEN_TXPWR_ENT2("RU996_484_242 1TX ", "IDX_0 ", "IDX_1 "),
+	__GEN_TXPWR_ENT2("RU996_484_242 2TX ", "IDX_0 ", "IDX_1 "),
+};
+
+static const struct txpwr_map __txpwr_map_lmt_ru996_484_242_be = {
+	.ent = __txpwr_ent_lmt_ru996_484_242_be,
+	.size = ARRAY_SIZE(__txpwr_ent_lmt_ru996_484_242_be),
+	.addr_from = R_BE_TXAGC_MAX_1TX_RU996_484_242_0,
+	.addr_to = R_BE_TXAGC_MAX_1TX_RU996_484_242_0,
+	.addr_to_1ss = 0, /* not support */
+};
+
 static unsigned int
 __print_txpwr_ent(char *buf, size_t bufsz, const struct txpwr_ent *ent,
 		  const s8 *bufp, const unsigned int cur, unsigned int *ate)
@@ -882,6 +921,9 @@ struct dbgfs_txpwr_table {
 	const struct txpwr_map *byr;
 	const struct txpwr_map *lmt;
 	const struct txpwr_map *lmt_ru;
+	const struct txpwr_map *lmt_ru484_242;
+	const struct txpwr_map *lmt_ru996_484;
+	const struct txpwr_map *lmt_ru996_484_242;
 };
 
 static const struct dbgfs_txpwr_table dbgfs_txpwr_table_ax = {
@@ -894,6 +936,9 @@ static const struct dbgfs_txpwr_table dbgfs_txpwr_table_be = {
 	.byr = &__txpwr_map_byr_be,
 	.lmt = &__txpwr_map_lmt_be,
 	.lmt_ru = &__txpwr_map_lmt_ru_be,
+	.lmt_ru484_242 = &__txpwr_map_lmt_ru484_242_be,
+	.lmt_ru996_484 = &__txpwr_map_lmt_ru996_484_be,
+	.lmt_ru996_484_242 = &__txpwr_map_lmt_ru996_484_242_be,
 };
 
 static const struct dbgfs_txpwr_table *dbgfs_txpwr_tables[RTW89_CHIP_GEN_NUM] = {
@@ -934,6 +979,8 @@ ssize_t rtw89_debug_priv_txpwr_table_get(struct rtw89_dev *rtwdev,
 					 char *buf, size_t bufsz)
 {
 	enum rtw89_chip_gen chip_gen = rtwdev->chip->chip_gen;
+	const struct rtw89_chip_info *chip = rtwdev->chip;
+	struct rtw89_hal *hal = &rtwdev->hal;
 	struct rtw89_sar_parm sar_parm = {};
 	const struct dbgfs_txpwr_table *tbl;
 	const struct rtw89_chan *chan;
@@ -979,6 +1026,35 @@ ssize_t rtw89_debug_priv_txpwr_table_get(struct rtw89_dev *rtwdev,
 		return n;
 	p += n;
 
+	switch (chip_gen) {
+	case RTW89_CHIP_AX:
+		goto out;
+	case RTW89_CHIP_BE:
+		if (!(chip->chip_id == RTL8922D && hal->cid == RTL8922D_CID7090))
+			goto out;
+		break;
+	default:
+		return -EOPNOTSUPP;
+	}
+
+	p += scnprintf(p, end - p, "\n[TX power limit_large_mru]\n");
+
+	n = __print_txpwr_map(rtwdev, p, end - p, tbl->lmt_ru484_242);
+	if (n < 0)
+		return n;
+	p += n;
+
+	n = __print_txpwr_map(rtwdev, p, end - p, tbl->lmt_ru996_484);
+	if (n < 0)
+		return n;
+	p += n;
+
+	n = __print_txpwr_map(rtwdev, p, end - p, tbl->lmt_ru996_484_242);
+	if (n < 0)
+		return n;
+	p += n;
+
+out:
 	return p - buf;
 }
 
@@ -3543,52 +3619,12 @@ out:
 	return count;
 }
 
-static int rtw89_dbg_trigger_l1_error_by_halt_h2c_ax(struct rtw89_dev *rtwdev)
-{
-	if (!test_bit(RTW89_FLAG_FW_RDY, rtwdev->flags))
-		return -EBUSY;
-
-	return rtw89_mac_set_err_status(rtwdev, MAC_AX_ERR_L1_RESET_FORCE);
-}
-
-static int rtw89_dbg_trigger_l1_error_by_halt_h2c_be(struct rtw89_dev *rtwdev)
-{
-	if (!test_bit(RTW89_FLAG_FW_RDY, rtwdev->flags))
-		return -EBUSY;
-
-	rtw89_leave_ps_mode(rtwdev);
-
-	rtw89_write32_set(rtwdev, R_BE_FW_TRIGGER_IDCT_ISR,
-			  B_BE_DMAC_FW_TRIG_IDCT | B_BE_DMAC_FW_ERR_IDCT_IMR);
-
-	return 0;
-}
-
-static int rtw89_dbg_trigger_l1_error_by_halt_h2c(struct rtw89_dev *rtwdev)
-{
-	const struct rtw89_chip_info *chip = rtwdev->chip;
-
-	switch (chip->chip_gen) {
-	case RTW89_CHIP_AX:
-		return rtw89_dbg_trigger_l1_error_by_halt_h2c_ax(rtwdev);
-	case RTW89_CHIP_BE:
-		return rtw89_dbg_trigger_l1_error_by_halt_h2c_be(rtwdev);
-	default:
-		return -EOPNOTSUPP;
-	}
-}
-
-static int rtw89_dbg_trigger_l1_error(struct rtw89_dev *rtwdev)
+static int rtw89_dbg_trigger_l1_error_ax(struct rtw89_dev *rtwdev)
 {
 	const struct rtw89_mac_gen_def *mac = rtwdev->chip->mac_def;
-	struct rtw89_cpuio_ctrl ctrl_para = {0};
+	struct rtw89_cpuio_ctrl ctrl_para = {};
 	u16 pkt_id;
 	int ret;
-
-	if (RTW89_CHK_FW_FEATURE(SIM_SER_L0L1_BY_HALT_H2C, &rtwdev->fw))
-		return rtw89_dbg_trigger_l1_error_by_halt_h2c(rtwdev);
-
-	rtw89_leave_ps_mode(rtwdev);
 
 	ret = mac->dle_buf_req(rtwdev, 0x20, true, &pkt_id);
 	if (ret)
@@ -3606,6 +3642,52 @@ static int rtw89_dbg_trigger_l1_error(struct rtw89_dev *rtwdev)
 		return -EFAULT;
 
 	return 0;
+}
+
+static int rtw89_dbg_trigger_l1_error_be(struct rtw89_dev *rtwdev)
+{
+	int ret;
+
+	ret = rtw89_mac_check_mac_en(rtwdev, RTW89_MAC_0, RTW89_DMAC_SEL);
+	if (ret)
+		return ret;
+
+	rtw89_write32_set(rtwdev, R_BE_FW_TRIGGER_IDCT_ISR,
+			  B_BE_DMAC_FW_TRIG_IDCT | B_BE_DMAC_FW_ERR_IDCT_IMR);
+
+	return 0;
+}
+
+static int rtw89_dbg_trigger_l1_error_by_halt_h2c(struct rtw89_dev *rtwdev)
+{
+	if (!test_bit(RTW89_FLAG_FW_RDY, rtwdev->flags))
+		return -EBUSY;
+
+	return rtw89_mac_set_err_status(rtwdev, MAC_AX_ERR_L1_RESET_FORCE);
+}
+
+static int rtw89_dbg_trigger_l1_error(struct rtw89_dev *rtwdev)
+{
+	const struct rtw89_chip_info *chip = rtwdev->chip;
+	int (*sim_l1)(struct rtw89_dev *rtwdev);
+
+	switch (chip->chip_gen) {
+	case RTW89_CHIP_AX:
+		sim_l1 = rtw89_dbg_trigger_l1_error_ax;
+		break;
+	case RTW89_CHIP_BE:
+		sim_l1 = rtw89_dbg_trigger_l1_error_be;
+		break;
+	default:
+		return -EOPNOTSUPP;
+	}
+
+	if (RTW89_CHK_FW_FEATURE(SIM_SER_L0L1_BY_HALT_H2C, &rtwdev->fw))
+		return rtw89_dbg_trigger_l1_error_by_halt_h2c(rtwdev);
+
+	rtw89_leave_ps_mode(rtwdev);
+
+	return sim_l1(rtwdev);
 }
 
 static int rtw89_dbg_trigger_l0_error_ax(struct rtw89_dev *rtwdev)
@@ -3632,35 +3714,11 @@ static int rtw89_dbg_trigger_l0_error_ax(struct rtw89_dev *rtwdev)
 
 static int rtw89_dbg_trigger_l0_error_be(struct rtw89_dev *rtwdev)
 {
-	u8 val8;
 	int ret;
 
 	ret = rtw89_mac_check_mac_en(rtwdev, RTW89_MAC_0, RTW89_CMAC_SEL);
 	if (ret)
 		return ret;
-
-	val8 = rtw89_read8(rtwdev, R_BE_CMAC_FUNC_EN);
-	rtw89_write8(rtwdev, R_BE_CMAC_FUNC_EN, val8 & ~B_BE_TMAC_EN);
-	mdelay(1);
-	rtw89_write8(rtwdev, R_BE_CMAC_FUNC_EN, val8);
-
-	return 0;
-}
-
-static int rtw89_dbg_trigger_l0_error_by_halt_h2c_ax(struct rtw89_dev *rtwdev)
-{
-	if (!test_bit(RTW89_FLAG_FW_RDY, rtwdev->flags))
-		return -EBUSY;
-
-	return rtw89_mac_set_err_status(rtwdev, MAC_AX_ERR_L0_RESET_FORCE);
-}
-
-static int rtw89_dbg_trigger_l0_error_by_halt_h2c_be(struct rtw89_dev *rtwdev)
-{
-	if (!test_bit(RTW89_FLAG_FW_RDY, rtwdev->flags))
-		return -EBUSY;
-
-	rtw89_leave_ps_mode(rtwdev);
 
 	rtw89_write32_set(rtwdev, R_BE_CMAC_FW_TRIGGER_IDCT_ISR,
 			  B_BE_CMAC_FW_TRIG_IDCT | B_BE_CMAC_FW_ERR_IDCT_IMR);
@@ -3668,19 +3726,24 @@ static int rtw89_dbg_trigger_l0_error_by_halt_h2c_be(struct rtw89_dev *rtwdev)
 	return 0;
 }
 
+static int rtw89_dbg_trigger_l0_error_by_halt_h2c(struct rtw89_dev *rtwdev)
+{
+	if (!test_bit(RTW89_FLAG_FW_RDY, rtwdev->flags))
+		return -EBUSY;
+
+	return rtw89_mac_set_err_status(rtwdev, MAC_AX_ERR_L0_RESET_FORCE);
+}
+
 static int rtw89_dbg_trigger_l0_error(struct rtw89_dev *rtwdev)
 {
 	const struct rtw89_chip_info *chip = rtwdev->chip;
-	int (*sim_l0_by_halt_h2c)(struct rtw89_dev *rtwdev);
 	int (*sim_l0)(struct rtw89_dev *rtwdev);
 
 	switch (chip->chip_gen) {
 	case RTW89_CHIP_AX:
-		sim_l0_by_halt_h2c = rtw89_dbg_trigger_l0_error_by_halt_h2c_ax;
 		sim_l0 = rtw89_dbg_trigger_l0_error_ax;
 		break;
 	case RTW89_CHIP_BE:
-		sim_l0_by_halt_h2c = rtw89_dbg_trigger_l0_error_by_halt_h2c_be;
 		sim_l0 = rtw89_dbg_trigger_l0_error_be;
 		break;
 	default:
@@ -3688,7 +3751,7 @@ static int rtw89_dbg_trigger_l0_error(struct rtw89_dev *rtwdev)
 	}
 
 	if (RTW89_CHK_FW_FEATURE(SIM_SER_L0L1_BY_HALT_H2C, &rtwdev->fw))
-		return sim_l0_by_halt_h2c(rtwdev);
+		return rtw89_dbg_trigger_l0_error_by_halt_h2c(rtwdev);
 
 	rtw89_leave_ps_mode(rtwdev);
 
@@ -3760,6 +3823,7 @@ rtw89_debug_priv_fw_crash_set(struct rtw89_dev *rtwdev,
 }
 
 struct rtw89_dbg_ser_counters {
+	unsigned int l0_sim;
 	unsigned int l0;
 	unsigned int l1;
 	unsigned int l0_to_l1;
@@ -3780,6 +3844,7 @@ static void rtw89_dbg_get_ser_counters_be(struct rtw89_dev *rtwdev,
 {
 	const u32 val = rtw89_read32(rtwdev, R_BE_SER_DBG_INFO);
 
+	cnt->l0_sim = rtw89_read8(rtwdev, R_BE_SER_L0_DBG_CNT1 + 3);
 	cnt->l0 = u32_get_bits(val, B_BE_SER_L0_COUNTER_MASK);
 	cnt->l1 = u32_get_bits(val, B_BE_SER_L1_COUNTER_MASK);
 	cnt->l0_to_l1 = u32_get_bits(val, B_BE_SER_L0_PROMOTE_L1_EVENT_MASK);
@@ -3809,6 +3874,10 @@ static ssize_t rtw89_debug_priv_ser_counters_get(struct rtw89_dev *rtwdev,
 
 	p += scnprintf(p, end - p, "SER L1 SW Count: %u\n", sw_cnt->l1);
 	p += scnprintf(p, end - p, "SER L2 SW Count: %u\n", sw_cnt->l2);
+
+	/* Some chipsets don't have dedicated cnt for SER simulation. */
+	p += scnprintf(p, end - p, "---\n");
+	p += scnprintf(p, end - p, "SER L0 Simulation Count: %d\n", cnt.l0_sim);
 
 	/* Some chipsets won't record SER simulation in HW cnt. */
 	p += scnprintf(p, end - p, "---\n");
