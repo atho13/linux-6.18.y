@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+
+
+/dts-v1/;
+
+#include "sun50i-h618-devboard.dts"
+
+/ {
+	model = "H618 AI-DouHe";
+	compatible = "ai-douhe,h618-ai-douhe", "allwinner,sun50i-h618";
+};
+
+&mmc1 {
+	status = "disabled";
+};
+
+&emac1 {
+	status = "disabled";
+};
+
+/* MAE0621A */
+&emac0 {
+	phy-mode = "rgmii";
+	allwinner,tx-delay-ps = <700>;
+	allwinner,rx-delay-ps = <3100>;
+	phy-io-supply = <&reg_aldo1>;
+};
