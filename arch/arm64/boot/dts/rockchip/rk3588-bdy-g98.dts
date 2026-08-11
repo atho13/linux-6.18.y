@@ -848,7 +848,33 @@
 		     <GIC_SPI 93 IRQ_TYPE_LEVEL_HIGH 0>,
 		     <GIC_SPI 94 IRQ_TYPE_LEVEL_HIGH 0>;
 	interrupt-names = "job", "mmu", "gpu";
+	/*
+	 * panthor registers only one OPP supply, so the default
+	 * gpu_opp_table_panthor (2 supplies, 6-cell opp-microvolt rows)
+	 * is rejected with -EINVAL and the probe fails. Point to the
+	 * single-supply table from rk3588-opp.dtsi instead.
+	 */
+	operating-points-v2 = <&gpu_opp_table>;
 	status = "okay";
+};
+
+/*
+ * rk3588s-vpu.dtsi adds rkvdec-sram@0/@78000 pools that fully overlap the
+ * codec-sram@0/@78000 pools from rk3588-base.dtsi, so mmio-sram fails to
+ * register them. Drop the duplicate rkvdec pools and let the rkvdec cores
+ * share the codec pools instead.
+ */
+&system_sram2 {
+	/delete-node/ rkvdec-sram@0;
+	/delete-node/ rkvdec-sram@78000;
+};
+
+&rkvdec0 {
+	rockchip,sram = <&vdec0_sram>;
+};
+
+&rkvdec1 {
+	rockchip,sram = <&vdec1_sram>;
 };
 
 /* ===== RGA (2D accelerator) ===== */
