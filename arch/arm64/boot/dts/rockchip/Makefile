@@ -327,6 +327,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3588s-radxa-e54c-v1.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3588s-roc-pc.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3588s-rock-5a.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3588s-rock-5c.dtb
+dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3588s-youyeetoo-r1.dtb
 
 # Overlay application tests
 #
