@@ -144,6 +144,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-radxa-e24c.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-radxa-e24c-dsa.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-rock-2a.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-rock-2f.dtb
+dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-xylink-xr3528.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-yixun-rs6pro.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3562-evb2-v10.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3566-anbernic-rg-arc-d.dtb
