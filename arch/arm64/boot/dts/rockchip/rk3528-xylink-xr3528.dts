@@ -320,6 +320,9 @@
 	power-domain@RK3528_PD_GPU {
 		rockchip,always-on;
 	};
+	power-domain@RK3528_PD_RKVDEC {
+		rockchip,always-on;
+	};
 	power-domain@RK3528_PD_RKVENC {
 		rockchip,always-on;
 	};
