@@ -468,3 +468,7 @@
 	phy-names = "usb2-phy";
 	status = "okay";
 };
+
+&wdt {
+	status = "okay";
+};
