@@ -36,6 +36,12 @@ extern int adap_test;
 extern char aic_fw_path[FW_PATH_MAX];
 extern struct aic_sdio_dev *aicbsp_sdiodev;
 
+/* Set once the combo BT firmware has been loaded over SDIO by aicbsp. The
+ * serdev HCI driver (hci_aic8800) waits on this so it never sends the HCI
+ * Reset before the BT core is actually running.
+ */
+static bool aicbt_fw_ready;
+
 static void cmd_dump(const struct rwnx_cmd *cmd)
 {
 	printk(KERN_CRIT "tkn[%d]  flags:%04x  result:%3d  cmd:%4d - reqcfm(%4d)\n",
@@ -2205,6 +2211,8 @@ int aicbsp_driver_fw_init(struct aic_sdio_dev *sdiodev)
 		if(btenable == 1){
 			if (aicbt_init(sdiodev))
 				return -1;
+			aicbt_fw_ready = true;
+			sdio_dbg("aicbsp: BT firmware ready\n");
 		}
 	}
 	#endif
@@ -2215,6 +2223,12 @@ int aicbsp_driver_fw_init(struct aic_sdio_dev *sdiodev)
 
 	return 0;
 }
+
+bool aicbsp_is_bt_fw_ready(void)
+{
+	return aicbt_fw_ready;
+}
+EXPORT_SYMBOL_GPL(aicbsp_is_bt_fw_ready);
 
 int aicwf_sdio_aicbsp_get_feature(struct aicbsp_feature_t *feature, char *fw_path)
 {

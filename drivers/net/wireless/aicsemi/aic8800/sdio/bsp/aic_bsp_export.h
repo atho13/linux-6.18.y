@@ -68,6 +68,9 @@ int aicwf_sdio_aicbsp_get_feature(struct aicbsp_feature_t *feature, char *fw_pat
 struct sk_buff *aicwf_sdio_aicbsp_resv_mem_alloc_skb(unsigned int length, uint32_t id);
 void aicwf_sdio_aicbsp_resv_mem_kfree_skb(struct sk_buff *skb, uint32_t id);
 
+/* true once the combo BT firmware has been loaded over SDIO */
+bool aicbsp_is_bt_fw_ready(void);
+
 struct sdio_func;
 struct aic_sdio_dev;
 int aicwf_sdio_readb(struct aic_sdio_dev *sdiodev, uint regaddr, u8 *val);

@@ -320,6 +320,9 @@
 	power-domain@RK3528_PD_GPU {
 		rockchip,always-on;
 	};
+	power-domain@RK3528_PD_RKVDEC {
+		rockchip,always-on;
+	};
 	power-domain@RK3528_PD_RKVENC {
 		rockchip,always-on;
 	};
@@ -466,5 +469,9 @@
 	maximum-speed = "high-speed";
 	phys = <&usb2phy_otg>;
 	phy-names = "usb2-phy";
+	status = "okay";
+};
+
+&wdt {
 	status = "okay";
 };
