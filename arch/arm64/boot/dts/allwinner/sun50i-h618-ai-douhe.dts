@@ -82,12 +82,7 @@
 	};
 };
 
-/*
- * Gigabit Ethernet: Maxio MAE0621 RGMII PHY on emac0.
- * Parameters translated from the stock Android firmware DTB:
- * phy-mode "rgmii", tx-delay 6 (600 ps), rx-delay 0, PHY reset on PI16,
- * RGMII pins PI0-PI15 pulled up with drive-strength 30.
- */
+/* Maxio MAE0621 RGMII PHY on emac0, parameters per stock firmware DTB */
 &emac0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&ext_rgmii_pins>;
@@ -99,7 +94,6 @@
 	status = "okay";
 };
 
-/* Override dtsi default: this board routes the full PI0-PI15 RGMII group */
 &ext_rgmii_pins {
 	pins = "PI0", "PI1", "PI2", "PI3", "PI4", "PI5", "PI6",
 	       "PI7", "PI8", "PI9", "PI10", "PI11", "PI12",
@@ -109,13 +103,12 @@
 };
 
 &mdio0 {
-	ext_rgmii_phy: ethernet-phy@1 {
+	ext_rgmii_phy: ethernet-phy@0 {
 		compatible = "ethernet-phy-ieee802.3-c22";
-		reg = <1>;
-		/* Reset circuit */
-		reset-gpios = <&pio 8 16 GPIO_ACTIVE_LOW>; /* PI16 */
+		reg = <0>;
+		reset-gpios = <&pio 8 16 GPIO_ACTIVE_LOW>;
 		reset-assert-us = <30000>;
-		reset-deassert-us = <150000>;
+		reset-deassert-us = <1000000>;
 	};
 };
 
