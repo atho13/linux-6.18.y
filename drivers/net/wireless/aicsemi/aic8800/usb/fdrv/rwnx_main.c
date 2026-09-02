@@ -3874,9 +3874,9 @@ void apm_probe_sta_work_process(struct work_struct *work)
        printk("sta %pM found = %d\n", mac, found);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
        if(found)
-               cfg80211_probe_status(rwnx_vif->ndev, mac, (u64)rwnx_vif->sta_probe.probe_id, 1, 0, false, GFP_ATOMIC);
+               cfg80211_probe_status(rwnx_vif->ndev, mac, (u64)rwnx_vif->sta_probe.probe_id, -1, 1, 0, false, GFP_ATOMIC);
        else
-               cfg80211_probe_status(rwnx_vif->ndev, mac, (u64)rwnx_vif->sta_probe.probe_id, 0, 0, false, GFP_ATOMIC);
+               cfg80211_probe_status(rwnx_vif->ndev, mac, (u64)rwnx_vif->sta_probe.probe_id, -1, 0, 0, false, GFP_ATOMIC);
 #else
        if(found)
                 cfg80211_probe_status(rwnx_vif->ndev, mac, (u64)rwnx_vif->sta_probe.probe_id, 1, GFP_ATOMIC);
@@ -4405,10 +4405,10 @@ int rwnx_cfg80211_set_monitor_channel_(struct wiphy *wiphy,
 
 
 /**
- * @probe_client: probe an associated client, must return a cookie that it
+ * @probe_peer: probe an associated peer, must return a cookie that it
  *	later passes to cfg80211_probe_status().
  */
-int rwnx_cfg80211_probe_client(struct wiphy *wiphy, struct net_device *dev,
+int rwnx_cfg80211_probe_peer(struct wiphy *wiphy, struct net_device *dev,
             const u8 *peer, u64 *cookie)
 {
     //struct rwnx_hw *rwnx_hw = wiphy_priv(wiphy);
@@ -6429,7 +6429,7 @@ static struct cfg80211_ops rwnx_cfg80211_ops = {
     .change_beacon = rwnx_cfg80211_change_beacon,
     .stop_ap = rwnx_cfg80211_stop_ap,
     .set_monitor_channel = rwnx_cfg80211_set_monitor_channel,
-    .probe_client = rwnx_cfg80211_probe_client,
+    .probe_peer = rwnx_cfg80211_probe_peer,
 //    .mgmt_frame_register = rwnx_cfg80211_mgmt_frame_register,
     .set_wiphy_params = rwnx_cfg80211_set_wiphy_params,
     .set_txq_params = rwnx_cfg80211_set_txq_params,

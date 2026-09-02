@@ -66,7 +66,7 @@ void apm_staloss_work_process(struct work_struct *work);
 void apm_probe_sta_work_process(struct work_struct *work);
 int rwnx_cfg80211_set_monitor_channel_(struct wiphy *wiphy, struct net_device *dev,
 				       struct cfg80211_chan_def *chandef);
-int rwnx_cfg80211_probe_client(struct wiphy *wiphy, struct net_device *dev,
+int rwnx_cfg80211_probe_peer(struct wiphy *wiphy, struct net_device *dev,
 			       const u8 *peer, u64 *cookie);
 void rwnx_cfg80211_mgmt_frame_register(struct wiphy *wiphy, struct wireless_dev *wdev,
 				       u16 frame_type, bool reg);
