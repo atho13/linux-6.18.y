@@ -3668,7 +3668,7 @@ int rwnx_cfg80211_set_monitor_channel_(struct wiphy *wiphy, struct net_device *d
  *	later passes to cfg80211_probe_status().
  */
 int rwnx_cfg80211_probe_peer(struct wiphy *wiphy, struct net_device *dev,
-			const u8 *peer, u64 *cookie)
+			const u8 *peer, u64 cookie)
 {
 //       struct rwnx_hw *rwnx_hw = wiphy_priv(wiphy);
        struct rwnx_vif *vif = netdev_priv(dev);
@@ -3693,7 +3693,8 @@ int rwnx_cfg80211_probe_peer(struct wiphy *wiphy, struct net_device *dev,
        memcpy(vif->sta_probe.sta_mac_addr, peer, 6);
        queue_work(vif->sta_probe.apmprobesta_wq, &vif->sta_probe.apmprobestaWork);
 
-       *cookie = vif->sta_probe.probe_id;
+       /* Keep the cookie pre-assigned by cfg80211 for the async probe status */
+       vif->sta_probe.probe_id = cookie;
 
        return 0;
 
@@ -3851,7 +3852,7 @@ static int rwnx_cfg80211_set_txq_params(struct wiphy *wiphy, struct net_device *
 static int
 rwnx_cfg80211_remain_on_channel_(struct wiphy *wiphy, struct wireless_dev *wdev,
 								struct ieee80211_channel *chan,
-								unsigned int duration, u64 *cookie, bool mgmt_roc_flag)
+								unsigned int duration, u64 cookie, bool mgmt_roc_flag)
 {
 	struct rwnx_hw *rwnx_hw = wiphy_priv(wiphy);
 	//struct rwnx_vif *rwnx_vif = netdev_priv(wdev->netdev);
@@ -3936,8 +3937,8 @@ rwnx_cfg80211_remain_on_channel_(struct wiphy *wiphy, struct wireless_dev *wdev,
 
 	/* If no error, keep all the information for handling of end of procedure */
 	if (error == 0) {
-		/* Set the cookie value */
-		*cookie = (u64)(rwnx_hw->roc_cookie_cnt);
+		/* Keep the cookie pre-assigned by cfg80211 */
+		roc_elem->cookie = cookie;
 		if (roc_cfm.status) {
 			// failed to roc
 			rwnx_hw->roc_elem = NULL;
@@ -3959,7 +3960,7 @@ rwnx_cfg80211_remain_on_channel_(struct wiphy *wiphy, struct wireless_dev *wdev,
 static int
 rwnx_cfg80211_remain_on_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
 								struct ieee80211_channel *chan,
-								unsigned int duration, u64 *cookie, const u8 *rx_addr)
+								unsigned int duration, u64 cookie, const u8 *rx_addr)
 {
 	return rwnx_cfg80211_remain_on_channel_(wiphy, wdev, chan, duration, cookie, false);
 }
@@ -4099,7 +4100,7 @@ static int rwnx_cfg80211_get_channel(struct wiphy *wiphy,
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0))
 static int rwnx_cfg80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 								 struct cfg80211_mgmt_tx_params *params,
-								 u64 *cookie)
+								 u64 cookie)
 #else
 static int rwnx_cfg80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 								 struct ieee80211_channel *channel, bool offchan,
@@ -4187,14 +4188,13 @@ static int rwnx_cfg80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 			return -EINVAL;
 		}
 	} else {
-		u64 cookie;
 		int error;
 
 		printk("mgmt rx remain on chan\n");
 
 		/* Start a ROC procedure for 30ms */
 		error = rwnx_cfg80211_remain_on_channel_(wiphy, wdev, channel,
-												30, &cookie, true);
+												30, cookie, true);
 		if (error) {
 			printk("mgmt rx chan err\n");
 			return error;

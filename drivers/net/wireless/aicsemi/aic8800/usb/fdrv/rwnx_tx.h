@@ -125,6 +125,8 @@ struct rwnx_sw_txhdr {
     u8 hw_queue;
     u16 frame_len;
     u16 headroom;
+    /* cookie pre-assigned by cfg80211 for mgmt_tx status reporting */
+    u64 cookie;
 #ifdef CONFIG_RWNX_AMSDUS_TX
     struct rwnx_amsdu amsdu;
 #endif
@@ -158,7 +160,7 @@ netdev_tx_t rwnx_start_xmit(struct sk_buff *skb, struct net_device *dev);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0))
 int rwnx_start_mgmt_xmit(struct rwnx_vif *vif, struct rwnx_sta *sta,
                          struct cfg80211_mgmt_tx_params *params, bool offchan,
-                         u64 *cookie);
+                         u64 cookie);
 #else
 int rwnx_start_mgmt_xmit(struct rwnx_vif *vif, struct rwnx_sta *sta,
                          struct ieee80211_channel *channel, bool offchan,
