@@ -64,8 +64,9 @@
 	max-speed = <100>;
 };
 
-/* GXLX2: DW-HDMI is directly mapped at 0xda800000, not via the legacy 0xc883a000 window */
+/* GXLX2: DW-HDMI uses G12A-style direct register mapping */
 &hdmi_tx {
+	compatible = "amlogic,meson-g12a-dw-hdmi";
 	reg = <0x0 0xda800000 0x0 0x10000>;
 };
 

@@ -671,6 +671,8 @@ struct rwnx_roc_elem {
     struct wireless_dev *wdev;
     struct ieee80211_channel *chan;
     unsigned int duration;
+    /* cookie pre-assigned by cfg80211 for this remain-on-channel */
+    u64 cookie;
     /* Used to avoid call of CFG80211 callback upon expiration of RoC */
     bool mgmt_roc;
     /* Indicate if we have switch on the RoC channel */

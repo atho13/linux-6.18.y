@@ -121,7 +121,7 @@ static inline int rwnx_rx_chan_switch_ind(struct rwnx_hw *rwnx_hw,
 			/* If mgmt_roc is true, remain on channel has been started by ourself */
 			if (!roc_elem->mgmt_roc) {
 				/* Inform the host that we have switch on the indicated off-channel */
-				cfg80211_ready_on_channel(roc_elem->wdev, (u64)(rwnx_hw->roc_cookie_cnt),
+				cfg80211_ready_on_channel(roc_elem->wdev, roc_elem->cookie,
 									  roc_elem->chan, roc_elem->duration, GFP_ATOMIC);
 			}
 
