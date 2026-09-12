@@ -127,7 +127,10 @@ struct mtkbtsdio_hdr {
 	u8	bt_type;
 } __packed;
 
+struct mt7663_combo;
+
 struct btmtksdio_dev {
+	struct mt7663_combo *combo;
 	struct hci_dev *hdev;
 	struct sdio_func *func;
 	struct device *dev;
@@ -142,6 +145,8 @@ struct btmtksdio_dev {
 
 	struct gpio_desc *reset;
 };
+
+#include "btmtksdio-w103d.h"
 
 static int mtk_hci_wmt_sync(struct hci_dev *hdev,
 			    struct btmtk_hci_wmt_params *wmt_params)
@@ -1345,6 +1350,44 @@ ignore_wmt_cmd:
 	return 0;
 }
 
+static int btmtksdio_combo_setup(struct hci_dev *hdev)
+{
+	struct btmtksdio_dev *bdev = hci_get_drvdata(hdev);
+	struct mt7663_combo *combo = bdev->combo;
+	int ret;
+
+	if (!combo)
+		return btmtksdio_setup(hdev);
+	mutex_lock(&combo->transition);
+	if (combo->removing) {
+		mutex_unlock(&combo->transition);
+		return -ENODEV;
+	}
+	reinit_completion(&combo->setup_done);
+	combo->setup_status = -EINPROGRESS;
+	ret = btmtksdio_setup(hdev);
+	combo->setup_status = ret ? ret : -EINPROGRESS;
+	if (ret)
+		complete_all(&combo->setup_done);
+	dev_info(bdev->dev, "W103D: combo Bluetooth setup result=%d\n", ret);
+	mutex_unlock(&combo->transition);
+	return ret;
+}
+
+static int btmtksdio_combo_shutdown(struct hci_dev *hdev)
+{
+	struct btmtksdio_dev *bdev = hci_get_drvdata(hdev);
+	int ret;
+
+	if (bdev->combo)
+		mutex_lock(&bdev->combo->transition);
+	ret = btmtksdio_shutdown(hdev);
+	/* FUNC_CTRL off does not undo the shared ROM patch setup. */
+	if (bdev->combo)
+		mutex_unlock(&bdev->combo->transition);
+	return ret;
+}
+
 static int btmtksdio_send_frame(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	struct btmtksdio_dev *bdev = hci_get_drvdata(hdev);
@@ -1498,8 +1541,9 @@ static int btmtksdio_probe(struct sdio_func *func,
 	hdev->close    = btmtksdio_close;
 	hdev->reset    = btmtksdio_reset;
 	hdev->flush    = btmtksdio_flush;
-	hdev->setup    = btmtksdio_setup;
-	hdev->shutdown = btmtksdio_shutdown;
+	hdev->setup    = btmtksdio_combo_setup;
+	hdev->post_init = btmtksdio_combo_post_init;
+	hdev->shutdown = btmtksdio_combo_shutdown;
 	hdev->send     = btmtksdio_send_frame;
 	hdev->wakeup   = btmtksdio_sdio_wakeup;
 	/*
@@ -1518,6 +1562,12 @@ static int btmtksdio_probe(struct sdio_func *func,
 	hci_set_quirk(hdev, HCI_QUIRK_NON_PERSISTENT_SETUP);
 
 	sdio_set_drvdata(func, bdev);
+
+	err = btmtksdio_combo_register(bdev);
+	if (err) {
+		hci_free_dev(hdev);
+		return err;
+	}
 
 	err = hci_register_dev(hdev);
 	if (err < 0) {
@@ -1578,6 +1628,7 @@ static void btmtksdio_remove(struct sdio_func *func)
 	if (!bdev)
 		return;
 
+	btmtksdio_combo_detach(bdev->combo);
 	hdev = bdev->hdev;
 
 	/* Make sure to call btmtksdio_close_hw before removing sdio card */

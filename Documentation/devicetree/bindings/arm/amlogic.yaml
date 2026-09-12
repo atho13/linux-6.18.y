@@ -159,6 +159,7 @@ properties:
               - freebox,fbx8am
               - radxa,zero
               - seirobotics,sei510
+              - zte,w103d
           - const: amlogic,g12a
 
       - description: Boards with the Amlogic Meson G12B A311D SoC
