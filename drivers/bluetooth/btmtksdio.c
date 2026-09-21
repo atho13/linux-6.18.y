@@ -1400,7 +1400,7 @@ static int btmtksdio_combo_setup(struct hci_dev *hdev)
 	combo->setup_status = ret ? ret : -EINPROGRESS;
 	if (ret)
 		complete_all(&combo->setup_done);
-	dev_info(bdev->dev, "W103D: combo Bluetooth setup result=%d\n", ret);
+	dev_dbg(bdev->dev, "W103D: combo Bluetooth setup result=%d\n", ret);
 	mutex_unlock(&combo->transition);
 	return ret;
 }

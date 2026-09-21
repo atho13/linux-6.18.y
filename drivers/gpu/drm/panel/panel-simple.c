@@ -3752,6 +3752,16 @@ static const struct panel_desc olimex_lcd_olinuxino_43 = {
 	.bus_format = MEDIA_BUS_FMT_RGB888_1X24,
 };
 
+static const struct panel_desc olimex_lcd_olinuxino_43ts = {
+	.modes = &olimex_lcd_olinuxino_43ts_mode,
+	.num_modes = 1,
+	.size = {
+		.width = 95,
+		.height = 54,
+	},
+	.bus_format = MEDIA_BUS_FMT_RGB888_1X24,
+};
+
 static const struct drm_display_mode olimex_lcd_olinuxino_5cts_mode = {
 	.clock = 33300,
 	.hdisplay = 800,
@@ -5409,6 +5419,9 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "olimex,lcd-olinuxino-4.3",
 		.data = &olimex_lcd_olinuxino_43,
+	}, {
+		.compatible = "olimex,lcd-olinuxino-43-ts",
+		.data = &olimex_lcd_olinuxino_43ts,
 	}, {
 		.compatible = "olimex,lcd-olinuxino-5",
 		.data = &olimex_lcd_olinuxino_5,
