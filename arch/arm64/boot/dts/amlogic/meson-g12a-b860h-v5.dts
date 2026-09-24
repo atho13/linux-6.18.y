@@ -379,6 +379,11 @@
 
 	vmmc-supply = <&vddao_3v3>;
 	vqmmc-supply = <&vddao_1v8>;
+
+	mt7668: wifi@1 {
+		compatible = "mediatek,mt7668";
+		reg = <1>;
+	};
 };
 
 /* SD card - conservative 10 MHz as validated on the reference DTB */

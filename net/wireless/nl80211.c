@@ -18953,6 +18953,10 @@ static int nl80211_color_change(struct sk_buff *skb, struct genl_info *info)
 	if (!tb)
 		return -ENOMEM;
 
+	params.link_id = nl80211_link_id(info->attrs);
+	if (!wdev->links[params.link_id].ap.beacon_interval)
+		return -EINVAL;
+
 	err = nl80211_parse_beacon(rdev, info->attrs, &params.beacon_next,
 				   wdev->links[params.link_id].ap.chandef.chan,
 				   info->extack);
