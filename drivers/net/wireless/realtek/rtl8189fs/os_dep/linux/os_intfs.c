@@ -3036,7 +3036,7 @@ _adapter *rtw_drv_add_vir_if(_adapter *primary_padapter,
 	* If it is 1, the address is locally administered
 	*/
 	mac[0] |= BIT(1);
-	if (padapter->iface_id >= IFACE_ID1)
+	if (padapter->iface_id > IFACE_ID1)
 		mac[4] ^= BIT(padapter->iface_id);
 
 	_rtw_memcpy(adapter_mac_addr(padapter), mac, ETH_ALEN);
