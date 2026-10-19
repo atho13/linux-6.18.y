@@ -1,5 +1,33 @@
 #include "sdiohal.h"
 
+/* Transfer size limit of the SRAM bounce buffer (dram-access quirk) */
+#define SDIOHAL_XFER_MAX 1536
+static unsigned int rx_cap_cnt;
+static int rx_rec_try, rx_rec_pending;
+static unsigned int rx_rec_ok, rx_rec_bad, rx_refuse_n;
+/* Refusal recovery statistics, exported read-only */
+#include <linux/moduleparam.h>
+static unsigned int rx_refuse_ep, rx_last_claim0, rx_ok0, rx_okc, rx_idle0, rx_idlec,
+	rx_bad0, rx_badc, rx_max_try, rx_tries;
+module_param_named(rx_refuse_episodes, rx_refuse_ep, uint, 0444);
+module_param_named(rx_refusals, rx_refuse_n, uint, 0444);
+module_param_named(rx_refuse_ok_claim0, rx_ok0, uint, 0444);
+module_param_named(rx_refuse_ok_claimN, rx_okc, uint, 0444);
+module_param_named(rx_refuse_idle_claim0, rx_idle0, uint, 0444);
+module_param_named(rx_refuse_idle_claimN, rx_idlec, uint, 0444);
+module_param_named(rx_refuse_bad_claim0, rx_bad0, uint, 0444);
+module_param_named(rx_refuse_bad_claimN, rx_badc, uint, 0444);
+module_param_named(rx_refuse_max_try, rx_max_try, uint, 0444);
+module_param_named(rx_refuse_tries, rx_tries, uint, 0444);
+
+static void rx_rec_count(unsigned int *claim0, unsigned int *claimn)
+{
+	if (rx_last_claim0)
+		(*claim0)++;
+	else
+		(*claimn)++;
+}
+
 static unsigned int sdiohal_rx_adapt_get(void)
 {
 	struct sdiohal_data_t *p_data = sdiohal_get_data();
@@ -149,6 +177,17 @@ static int sdiohal_rx_buf_parser(char *data_buf, int valid_len)
 				sdiohal_err("%s skip type[%d]sub[%d]len[%d]\n",
 					    __func__, puh->type, puh->subtype,
 					    puh->len);
+				/* Step over the skipped packet so parsing makes progress */
+				{
+					unsigned int skiplen = puh->len;
+
+					if (skiplen == 0 || skiplen >
+					    (MAX_PAC_SIZE - SDIO_PUB_HEADER_SIZE))
+						skiplen = 4;
+					p += sizeof(struct sdio_puh_t)
+						+ SDIOHAL_ALIGN_4BYTE(skiplen);
+					puh = (struct sdio_puh_t *)p;
+				}
 				continue;
 			}
 			p_data->rx_packer_cnt++;
@@ -184,7 +223,7 @@ static void sdiohal_rx_wait(void)
 	struct sdiohal_data_t *p_data = sdiohal_get_data();
 
 	while (1) {
-		msleep(300);
+		msleep(20); /* polling RX, was 300 */
 		if (WCN_CARD_EXIST(&p_data->xmit_cnt))
 			break;
 	}
@@ -287,6 +326,15 @@ read_again:
 				sdiohal_debug("alloc_size=%d < read_len=%d\n",
 					      alloc_size, read_len);
 			}
+			if (read_len > SDIOHAL_XFER_MAX) {
+				rx_cap_cnt++;
+				if (rx_cap_cnt <= 20 ||
+				    !(rx_cap_cnt % 1000))
+					pr_debug("xfer_cap: rx want=%d cap=%d n=%u\n",
+						 read_len, SDIOHAL_XFER_MAX,
+						 rx_cap_cnt);
+				read_len = SDIOHAL_XFER_MAX;
+			}
 
 			ret = sdiohal_sdio_pt_read(rx_buf, read_len);
 			if (ret != 0) {
@@ -298,8 +346,91 @@ read_again:
 			rx_dtbs = *((unsigned int *)(rx_buf + (read_len - 4)));
 			valid_len =
 				*((unsigned int *)(rx_buf + (read_len - 8)));
+			{
+				/* Account the result of the previous refusal recovery */
+				if (rx_rec_pending) {
+					const char *res;
+
+					rx_rec_pending = 0;
+					if (valid_len) {
+						rx_rec_ok++;
+						res = "ok";
+						rx_rec_count(&rx_ok0, &rx_okc);
+					} else if (rx_dtbs == 0) {
+						rx_rec_ok++;
+						res = "idle";
+						rx_rec_count(&rx_idle0, &rx_idlec);
+					} else {
+						rx_rec_bad++;
+						res = "bad";
+						rx_rec_count(&rx_bad0, &rx_badc);
+					}
+					if (rx_rec_ok + rx_rec_bad <= 60 ||
+					    !((rx_rec_ok + rx_rec_bad) % 500))
+						pr_debug("rx_recov: after try=%d claim0=%u %s valid=%u dtbs=%u ok=%u bad=%u h=%8ph\n",
+							 rx_rec_try, rx_last_claim0, res, valid_len,
+							 rx_dtbs, rx_rec_ok, rx_rec_bad, rx_buf);
+				}
+				if (valid_len || rx_dtbs == 0)
+					rx_rec_try = 0;	/* any normal read ends the episode */
+				if (valid_len == 0 && rx_dtbs > 0 &&
+				    read_len <= SDIOHAL_XFER_MAX) {
+					unsigned int claim;
+
+					if (rx_rec_try == 0)
+						rx_refuse_ep++;
+					rx_rec_try++;
+					rx_refuse_n++;
+					rx_tries++;
+					if (rx_rec_try > rx_max_try)
+						rx_max_try = rx_rec_try;
+					/* odd tries: claim 0, even tries: computed claim */
+					rx_last_claim0 = (rx_rec_try & 1);
+					claim = rx_last_claim0 ? 0 :
+						min_t(unsigned int, 511,
+						      (rx_dtbs + 64 + 511) / 512 + 1);
+					if (rx_refuse_n <= 60 || !(rx_refuse_n % 500))
+						pr_debug("rx_recov: refuse ep=%u try=%d dtbs=%u n=%u claim=%u\n",
+							 rx_refuse_ep, rx_rec_try, rx_dtbs,
+							 rx_refuse_n, claim);
+					if (rx_rec_try > 8)
+						usleep_range(1000, 2000);
+					sdiohal_crafted_read(claim);
+					rx_rec_pending = 1;
+				}
+			}
 			sdiohal_debug("%s rx_dtbs:%d,valid len:%d\n",
 				      __func__, rx_dtbs, valid_len);
+			/* Bad valid length: salvage leading packets up to eof or type 0xF */
+			if (valid_len == 0 || valid_len > (unsigned int)(read_len - 8)) {
+				struct sdio_puh_t *pp = (struct sdio_puh_t *)rx_buf;
+				unsigned int off = 0;
+
+				if (pp->eof == 0 && pp->type != 0xF && pp->type <= 3 &&
+				    pp->len > 0 &&
+				    pp->len <= (MAX_PAC_SIZE - SDIO_PUB_HEADER_SIZE)) {
+					while (off + sizeof(*pp) <= (unsigned int)read_len) {
+						unsigned int plen, step;
+
+						pp = (struct sdio_puh_t *)(rx_buf + off);
+						if (pp->eof || pp->type == 0xF)
+							break;
+						if (pp->type > 3)
+							break;
+						plen = pp->len + (pp->check_sum ? 2 : 0);
+						if (plen == 0 ||
+						    plen > (MAX_PAC_SIZE - SDIO_PUB_HEADER_SIZE))
+							break;
+						step = sizeof(*pp) + SDIOHAL_ALIGN_4BYTE(plen);
+						if (step < sizeof(*pp) ||
+						    off + step > (unsigned int)read_len)
+							break;
+						off += step;
+					}
+					if (off > 0)
+						valid_len = off;
+				}
+			}
 			sdiohal_rx_buf_parser(rx_buf, valid_len);
 		}
 

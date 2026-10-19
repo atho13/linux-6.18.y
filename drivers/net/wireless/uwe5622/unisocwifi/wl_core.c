@@ -30,6 +30,7 @@
 #include "msg.h"
 #include "txrx.h"
 #include "debug.h"
+#include <linux/moduleparam.h>
 #include "dbg_ini_util.h"
 #include "tcp_ack.h"
 
@@ -38,6 +39,8 @@ int sprdwl_debug_level = L_ERR;
 #else
 int sprdwl_debug_level = L_NONE;
 #endif
+/* Log level, adjustable at runtime */
+module_param_named(debug_level, sprdwl_debug_level, int, 0644);
 
 struct device *sprdwl_dev;
 static void adjust_debug_level(char *buf, unsigned char offset)

@@ -714,7 +714,7 @@ static int sprdwl_add_cipher_key(struct sprdwl_vif *vif, bool pairwise,
 	return ret;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 static int sprdwl_cfg80211_add_key(struct wiphy *wiphy, struct wireless_dev *wdev,
 				   int link_id, u8 key_index, bool pairwise,
 				   const u8 *mac_addr,
@@ -782,7 +782,7 @@ static int sprdwl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *ndev,
 }
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 static int sprdwl_cfg80211_del_key(struct wiphy *wiphy, struct wireless_dev *wdev,
 				   int link_id, u8 key_index, bool pairwise,
 				   const u8 *mac_addr)
@@ -975,7 +975,7 @@ static int sprdwl_cfg80211_start_ap(struct wiphy *wiphy,
 		wl_ndev_log(L_ERR, ndev, "%s invalid SSID!\n", __func__);
 		return -EINVAL;
 	}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	memcpy_and_pad(vif->ssid, sizeof(vif->ssid), settings->ssid, settings->ssid_len, 0);
 #else
 	strncpy(vif->ssid, settings->ssid, settings->ssid_len);
@@ -1050,7 +1050,7 @@ static int sprdwl_cfg80211_start_ap(struct wiphy *wiphy,
 	*(data + index) = (u8)(settings->ssid_len + 1);
 	index += 1;
 	/* copy ssid */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	memcpy(data + index, settings->ssid, settings->ssid_len);
 #else
 	strncpy(data + index, settings->ssid, settings->ssid_len);
@@ -1159,7 +1159,7 @@ static int sprdwl_cfg80211_stop_ap(struct wiphy *wiphy, struct net_device *ndev)
 	return 0;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 static int sprdwl_cfg80211_add_station(struct wiphy *wiphy,
 					   struct wireless_dev *wdev, const u8 *mac,
 					   struct station_parameters *params)
@@ -1175,7 +1175,7 @@ static int sprdwl_cfg80211_add_station(struct wiphy *wiphy,
 }
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 static int sprdwl_cfg80211_del_station(struct wiphy *wiphy,
 					   struct wireless_dev *wdev,
 #else
@@ -1190,7 +1190,7 @@ static int sprdwl_cfg80211_del_station(struct wiphy *wiphy,
 					)
 
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	struct sprdwl_vif *vif = netdev_priv(wdev->netdev);
 #else
 	struct sprdwl_vif *vif = netdev_priv(ndev);
@@ -1200,7 +1200,7 @@ static int sprdwl_cfg80211_del_station(struct wiphy *wiphy,
 #else
 	if (!mac) {
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 		wl_ndev_log(L_DBG, wdev->netdev, "ignore NULL MAC address!\n");
 #else
 		wl_ndev_log(L_DBG, ndev, "ignore NULL MAC address!\n");
@@ -1208,7 +1208,7 @@ static int sprdwl_cfg80211_del_station(struct wiphy *wiphy,
 		goto out;
 	}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 83)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	wl_ndev_log(L_DBG, wdev->netdev, "%s %pM reason:%d\n", __func__, params->mac,
 #else
 	wl_ndev_log(L_DBG, ndev, "%s %pM reason:%d\n", __func__, params->mac,
@@ -1217,7 +1217,7 @@ static int sprdwl_cfg80211_del_station(struct wiphy *wiphy,
 	sprdwl_del_station(vif->priv, vif->ctx_id, params->mac,
 			params->reason_code);
 #else
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	wl_ndev_log(L_DBG, wdev->netdev, "%s %pM\n", __func__, mac);
 #else
 	wl_ndev_log(L_DBG, ndev, "%s %pM\n", __func__, mac);
@@ -1231,7 +1231,7 @@ out:
 	return 0;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 static int
 sprdwl_cfg80211_change_station(struct wiphy *wiphy,
 				   struct wireless_dev *wdev, const u8 *mac,
@@ -1250,7 +1250,7 @@ sprdwl_cfg80211_change_station(struct wiphy *wiphy,
 #endif
 
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 static int sprdwl_cfg80211_get_station(struct wiphy *wiphy,
 					   struct wireless_dev *wdev, const u8 *mac,
 					   struct station_info *sinfo)
@@ -1491,14 +1491,14 @@ void sprdwl_report_softap(struct sprdwl_vif *vif, u8 is_connect, u8 *addr,
 			netif_carrier_on(vif->ndev);
 			netif_wake_queue(vif->ndev);
 		}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 		cfg80211_new_sta(&vif->wdev, addr, &sinfo, GFP_KERNEL);
 #else
 		cfg80211_new_sta(vif->ndev, addr, &sinfo, GFP_KERNEL);
 #endif
 		wl_ndev_log(L_DBG, vif->ndev, "New station (%pM) connected\n", addr);
 	} else {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 		cfg80211_del_sta(&vif->wdev, addr, GFP_KERNEL);
 #else
 		cfg80211_del_sta(vif->ndev, addr, GFP_KERNEL);
@@ -1751,20 +1751,10 @@ static int sprdwl_cfg80211_scan(struct wiphy *wiphy,
 	}
 #endif
 
-	/* set WPS ie */
-	if (request->ie_len > 0) {
-		if (request->ie_len > 255) {
-			wl_ndev_log(L_ERR, vif->ndev, "%s invalid len: %zu\n", __func__,
-				   request->ie_len);
-			ret = -EOPNOTSUPP;
-			goto err;
-		}
-
-		ret = sprdwl_set_ie(priv, vif->ctx_id, SPRDWL_IE_PROBE_REQ,
-				    request->ie, request->ie_len);
-		if (ret)
-			goto err;
-	}
+	/*
+	 * Extra probe request IEs are not passed to the CP: SET_IE
+	 * PROBE_REQ makes the firmware assert (cmd_tx_rom.c:3212).
+	 */
 
 	for (i = 0; i < request->n_channels; i++) {
 		switch (request->channels[i]->hw_value) {
@@ -1776,7 +1766,7 @@ static int sprdwl_cfg80211_scan(struct wiphy *wiphy,
 			break;
 
 		default:
-			if (n_5g_chn > ARRAY_SIZE(chns_5g))
+			if (n_5g_chn >= ARRAY_SIZE(chns_5g))
 				break;
 			chns_5g[n_5g_chn] = request->channels[i]->hw_value;
 			n_5g_chn++;
@@ -1825,7 +1815,7 @@ static int sprdwl_cfg80211_scan(struct wiphy *wiphy,
 			if (!ssids[i].ssid_len)
 				continue;
 			scan_ssids->len = ssids[i].ssid_len;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 			memcpy(scan_ssids->ssid, ssids[i].ssid, ssids[i].ssid_len);
 #else
 			strncpy(scan_ssids->ssid, ssids[i].ssid,
@@ -2141,14 +2131,41 @@ static int sprdwl_cfg80211_connect(struct wiphy *wiphy, struct net_device *ndev,
 		sprdwl_cfg80211_disconnect(wiphy, ndev, 3);
 	}
 
-	/* Set wps ie */
+	/* Send only the RSN/WPA IEs as ASSOC_REQ IEs: a full SET_IE fails
+	 * before CONNECT, and the firmware builds the rest from con.*.
+	 */
 	if (sme->ie_len > 0) {
-		wl_ndev_log(L_DBG, ndev, "set assoc req ie, len %zx\n", sme->ie_len);
-		ret = sprdwl_set_ie(vif->priv, vif->ctx_id, SPRDWL_IE_ASSOC_REQ,
-				    sme->ie, sme->ie_len);
-		if (ret)
-			goto err;
+		u8 assoc_ie[128];
+		size_t ie_off = 0, assoc_len = 0;
+		const u8 *sme_ies = sme->ie;
+
+		while (ie_off + 2 <= sme->ie_len) {
+			u8 id = sme_ies[ie_off], l = sme_ies[ie_off + 1];
+
+			if (ie_off + 2 + l > sme->ie_len)
+				break;
+			if ((id == WLAN_EID_RSN ||
+			     (id == WLAN_EID_VENDOR_SPECIFIC && l >= 4 &&
+			      sme_ies[ie_off + 2] == 0x00 && sme_ies[ie_off + 3] == 0x50 &&
+			      sme_ies[ie_off + 4] == 0xf2 && sme_ies[ie_off + 5] == 0x01)) &&
+			    assoc_len + 2 + l <= sizeof(assoc_ie)) {
+				memcpy(assoc_ie + assoc_len, sme_ies + ie_off, 2 + l);
+				assoc_len += 2 + l;
+			}
+			ie_off += 2 + l;
+		}
+		wl_ndev_log(L_DBG, ndev, "set assoc req ie, len %zx of %zx\n",
+			    assoc_len, sme->ie_len);
+		if (assoc_len) {
+			ret = sprdwl_set_ie(vif->priv, vif->ctx_id,
+					    SPRDWL_IE_ASSOC_REQ, assoc_ie, assoc_len);
+			if (ret)
+				wl_ndev_log(L_ERR, ndev, "set assoc req ie failed: %d\n",
+					    ret);
+		}
 	}
+	/* ret may still hold -EPERM from the function entry */
+	ret = 0;
 
 	wl_ndev_log(L_DBG, ndev, "wpa versions %#x\n", sme->crypto.wpa_versions);
 	con.wpa_versions = sme->crypto.wpa_versions;
@@ -2282,7 +2299,27 @@ static int sprdwl_cfg80211_connect(struct wiphy *wiphy, struct net_device *ndev,
 		memcpy(con.bssid, sme->bssid_hint, sizeof(con.bssid));
 #endif
 	} else {
+		struct cfg80211_bss *bss;
+
 		wl_ndev_log(L_DBG, ndev, "No BSSID specified!\n");
+		/* Fall back to the cfg80211 BSS cache, e.g. after a userspace scan */
+		bss = cfg80211_get_bss(wiphy, NULL, NULL, sme->ssid,
+				       sme->ssid_len, IEEE80211_BSS_TYPE_ESS,
+				       IEEE80211_PRIVACY_ANY);
+		if (bss) {
+			memcpy(con.bssid, bss->bssid, sizeof(con.bssid));
+			if (bss->channel)
+				con.channel =
+					ieee80211_frequency_to_channel(bss->channel->center_freq);
+			wl_ndev_log(L_DBG, ndev, "BSSID %pM channel %u from BSS cache\n",
+				    con.bssid, con.channel);
+			cfg80211_put_bss(wiphy, bss);
+		}
+	}
+	if (!is_valid_ether_addr(con.bssid)) {
+		wl_ndev_log(L_ERR, ndev, "%s: no BSSID available\n", __func__);
+		ret = -EINVAL;
+		goto err;
 	}
 
 	/* Special process for WEP(WEP key must be set before essid) */
@@ -3017,13 +3054,13 @@ void sprdwl_cfg80211_dump_frame_prot_info(int send, int freq,
 }
 
 /* P2P related stuff */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 static int sprdwl_cfg80211_remain_on_channel(struct wiphy *wiphy,
 					     struct wireless_dev *wdev,
 					     struct ieee80211_channel *chan,
 					     unsigned int duration,
 					     u64 cookie, const u8 *rx_addr)
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 static int sprdwl_cfg80211_remain_on_channel(struct wiphy *wiphy,
 					     struct wireless_dev *wdev,
 					     struct ieee80211_channel *chan,
@@ -3037,18 +3074,18 @@ static int sprdwl_cfg80211_remain_on_channel(struct wiphy *wiphy,
 					     u64 *cookie)
 #endif
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	(void)rx_addr; /* unused in this driver */
 #endif
 	struct sprdwl_vif *vif = container_of(wdev, struct sprdwl_vif, wdev);
 	enum nl80211_channel_type channel_type = 0;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 3, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 0)
 	static u64 remain_index;
 #endif
 	u64 ck;
 	int ret;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	/* cookie is pre-assigned by cfg80211 before the op is called */
 	ck = cookie;
 #else
@@ -3080,7 +3117,7 @@ static int sprdwl_cfg80211_cancel_remain_on_channel(struct wiphy *wiphy,
 	return sprdwl_cancel_remain_chan(vif->priv, vif->ctx_id, cookie);
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 static int sprdwl_cfg80211_mgmt_tx(struct wiphy *wiphy,
 				   struct wireless_dev *wdev,
 				   struct cfg80211_mgmt_tx_params *params,
@@ -3106,13 +3143,13 @@ static int sprdwl_cfg80211_mgmt_tx(struct wiphy *wiphy,
 	unsigned int wait = params->wait;
 	bool dont_wait_for_ack = params->dont_wait_for_ack;
 #endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 3, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 0)
 	static u64 mgmt_index;
 #endif
 	u64 ck;
 	int ret = 0;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	/* cookie is pre-assigned by cfg80211 before the op is called */
 	ck = cookie;
 #else

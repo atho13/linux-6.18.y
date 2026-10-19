@@ -1,5 +1,9 @@
 #include "sdiohal.h"
 
+/* Transfer size limit of the SRAM bounce buffer (dram-access quirk) */
+#define SDIOHAL_XFER_MAX 1536
+static unsigned int tx_split_cnt;
+
 #define SDIOHAL_TX_RETRY_MAX 3
 #define SDIOHAL_TX_NO_RETRY
 
@@ -102,7 +106,20 @@ int sdiohal_tx_data_list_send(struct sdiohal_list_t *data_list,
 		if (p_data->send_buf.used_len +
 			sizeof(struct sdio_puh_t) +
 			SDIOHAL_ALIGN_4BYTE(mbuf_node->len)
-				> SDIOHAL_TX_SENDBUF_LEN) {
+				> SDIOHAL_TX_SENDBUF_LEN ||
+		    (p_data->send_buf.used_len &&
+		     SDIOHAL_ALIGN_BLK(p_data->send_buf.used_len +
+			sizeof(struct sdio_puh_t) +
+			SDIOHAL_ALIGN_4BYTE(mbuf_node->len) +
+			SDIO_PUB_HEADER_SIZE) > SDIOHAL_XFER_MAX)) {
+			tx_split_cnt++;
+			if (tx_split_cnt <= 20 ||
+			    !(tx_split_cnt % 1000))
+				pr_debug("xfer_cap: tx split used=%u next=%u node=%u/%u n=%u\n",
+					 p_data->send_buf.used_len,
+					 mbuf_node->len, i,
+					 data_list->node_num,
+					 tx_split_cnt);
 			sdiohal_tx_set_eof(&p_data->send_buf,
 					   p_data->eof_buf);
 			ret = sdiohal_send(&p_data->send_buf, data_list);

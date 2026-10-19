@@ -43,7 +43,7 @@
 
 /* tx len less than cp len 4 byte as sdiom 4 bytes align */
 /* set MAX CMD length to 1600 on firmware side*/
-#define SPRDWL_MAX_CMD_TXLEN	1596
+#define SPRDWL_MAX_CMD_TXLEN	2048	/* headroom for INI sec2+hdr+puh */
 #define SPRDWL_MAX_CMD_RXLEN	1092
 #define SPRDWL_MAX_DATA_TXLEN	1672
 #define SPRDWL_MAX_DATA_RXLEN	1676

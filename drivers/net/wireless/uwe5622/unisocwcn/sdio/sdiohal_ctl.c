@@ -5,7 +5,7 @@
 #include <linux/kthread.h>
 #include <linux/mmc/host.h>
 #include <linux/version.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 #include <linux/gpio/consumer.h>
 #include <linux/of.h>
 #else
@@ -754,7 +754,7 @@ static int sdiohal_test_int_init(unsigned char func_tag)
 #ifdef CONFIG_WCN_PARSE_DTS
 	struct device_node *np;
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	struct gpio_desc *pub_gpio_desc = NULL;
 #else
 	unsigned int pub_gpio_num = 0;
@@ -773,7 +773,7 @@ static int sdiohal_test_int_init(unsigned char func_tag)
 		sdiohal_err("dts node not found");
 		return -1;
 	}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	pub_gpio_desc = fwnode_gpiod_get_index(
 		of_fwnode_handle(np), "int-gpio", 0,
 		GPIOD_IN, "sdiohal-int-irq");
@@ -793,7 +793,7 @@ static int sdiohal_test_int_init(unsigned char func_tag)
 	pub_gpio_num = of_get_named_gpio(np, "int-gpio", 0);
 #endif
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	/* GPIO already configured above */
 #else
 	sdiohal_info("pub_gpio_num:%d\n", pub_gpio_num);

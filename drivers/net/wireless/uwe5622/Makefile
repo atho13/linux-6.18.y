@@ -1,4 +1,5 @@
-ifneq ($(CONFIG_AW_WIFI_DEVICE_UWE5622)$(CONFIG_RK_WIFI_DEVICE_UWE5622),)
+# Unisoc UWE5621/5622: firmware path uwe5621ds; Amlogic boards use AML_WIFI_DEVICE_UWE5621
+ifneq ($(CONFIG_AW_WIFI_DEVICE_UWE5622)$(CONFIG_RK_WIFI_DEVICE_UWE5622)$(CONFIG_AML_WIFI_DEVICE_UWE5621)$(CFG_AML_WIFI_DEVICE_UWE5621)$(CFG_AML_WIFI_DEVICE_UWE5622),)
 obj-y += unisocwcn/
 endif
 obj-$(CONFIG_WLAN_UWE5622)    += unisocwifi/
@@ -8,5 +9,5 @@ UNISOCWCN_DIR := $(shell cd $(src)/unisocwcn/ && /bin/pwd)
 UNISOC_BSP_INCLUDE := $(UNISOCWCN_DIR)/include
 export UNISOC_BSP_INCLUDE
 
-UNISOC_FW_PATH_CONFIG := "/lib/firmware/uwe5622/"
+UNISOC_FW_PATH_CONFIG := "/lib/firmware/uwe5621ds/"
 export UNISOC_FW_PATH_CONFIG

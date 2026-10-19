@@ -23,7 +23,7 @@
 #include <linux/module.h>
 #include <linux/of_device.h>
 #include <linux/version.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 #include <linux/gpio/consumer.h>
 #include <linux/of.h>
 #else
@@ -31,6 +31,7 @@
 #endif
 #include <linux/of_platform.h>
 #include <linux/pm_runtime.h>
+#include <linux/scatterlist.h>
 #include <linux/mmc/card.h>
 #include <linux/mmc/core.h>
 #include <linux/mmc/host.h>
@@ -53,6 +54,50 @@ extern int wifi_irq_trigger_level(void);
 extern void sdio_reinit(void);
 extern void sdio_clk_always_on(int on);
 extern void sdio_set_max_reqsz(unsigned int size);
+
+/* Mainline meson: mmc_power_* helpers are not exported to modules.
+ * Use mmc_hw_reset (exported) for restore/up; power_off/save become no-ops
+ * (chip EN is driven by extern_wifi_set_enable / pwrseq reset-gpios).
+ */
+static inline void sdiohal_claimed_hw_reset(struct mmc_host *host)
+{
+	struct sdio_func *f = host->card ? host->card->sdio_func[0] : NULL;
+
+	if (f)
+		sdio_claim_host(f);
+	mmc_hw_reset(host->card);
+	if (f)
+		sdio_release_host(f);
+}
+
+static inline void sdiohal_mmc_power_restore_host(struct mmc_host *host)
+{
+	/* 6.18+: mmc_hw_reset(struct mmc_card *) */
+	if (host && host->card)
+		sdiohal_claimed_hw_reset(host);
+}
+
+static inline void sdiohal_mmc_power_up(struct mmc_host *host, u32 ocr)
+{
+	(void)ocr;
+	if (host && host->card)
+		sdiohal_claimed_hw_reset(host);
+}
+
+static inline void sdiohal_mmc_power_off(struct mmc_host *host)
+{
+	(void)host;
+}
+
+static inline void sdiohal_mmc_power_save_host(struct mmc_host *host)
+{
+	(void)host;
+}
+
+#define mmc_power_restore_host sdiohal_mmc_power_restore_host
+#define mmc_power_up sdiohal_mmc_power_up
+#define mmc_power_off sdiohal_mmc_power_off
+#define mmc_power_save_host sdiohal_mmc_power_save_host
 #endif
 
 //#ifdef CONFIG_RK_BOARD
@@ -202,6 +247,49 @@ static void sdiohal_abort(void)
 	sdiohal_info("after abort, SDIO_VER_CCCR:0x%x\n", val);
 
 	sdio_release_host(p_data->sdio_func[FUNC_0]);
+}
+
+/* RX refusal recovery: CMD53 read claiming @claim blocks, transfer 3, then CCCR abort */
+void sdiohal_crafted_read(unsigned int claim)
+{
+	struct sdiohal_data_t *p_data = sdiohal_get_data();
+	struct sdio_func *func = p_data->sdio_func[FUNC_1];
+	struct mmc_host *host = func->card->host;
+	struct mmc_request mrq = {};
+	struct mmc_command cmd = {};
+	struct mmc_data data = {};
+	struct scatterlist sg;
+	unsigned char *buf;
+	int aerr = 0;
+	unsigned int *w;
+
+	buf = kzalloc(1536, GFP_KERNEL);
+	if (!buf)
+		return;
+	sg_init_one(&sg, buf, 1536);
+	data.blksz = 512;
+	data.blocks = 3;
+	data.flags = MMC_DATA_READ;
+	data.sg = &sg;
+	data.sg_len = 1;
+	cmd.opcode = 53;
+	cmd.arg = (1 & 0x7) << 28;	/* read, fn1 */
+	cmd.arg |= 1 << 27;		/* block mode */
+	cmd.arg |= (SDIOHAL_PK_MODE_ADDR & 0x1FFFF) << 9;	/* fixed address */
+	cmd.arg |= claim & 0x1FF;
+	cmd.flags = MMC_RSP_SPI_R5 | MMC_RSP_R5 | MMC_CMD_ADTC;
+	mrq.cmd = &cmd;
+	mrq.data = &data;
+	sdio_claim_host(func);
+	mmc_set_data_timeout(&data, func->card);
+	mmc_wait_for_req(host, &mrq);
+	sdio_writeb(p_data->sdio_func[FUNC_0], VAL_ABORT_TRANS, SDIOHAL_CCCR_ABORT, &aerr);
+	sdio_release_host(func);
+	w = (unsigned int *)buf;
+	pr_debug("rx_recov: crafted claim=%u cmd_err=%d dat_err=%d xfered=%u abort_err=%d h=%16ph w380=%08x w381=%08x w382=%08x w383=%08x\n",
+		 claim, cmd.error, data.error, data.bytes_xfered, aerr, buf,
+		 w[380], w[381], w[382], w[383]);
+	kfree(buf);
 }
 
 /* Get Success Transfer pac num Before Abort */
@@ -1207,7 +1295,7 @@ static int sdiohal_enable_slave_irq(void)
 	return 0;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 static int sdiohal_host_irq_init(struct gpio_desc *desc)
 #else
 static int sdiohal_host_irq_init(unsigned int irq_gpio_num)
@@ -1230,7 +1318,7 @@ static int sdiohal_host_irq_init(unsigned int irq_gpio_num)
 		     ((p_data->irq_trigger_type == IRQF_TRIGGER_LOW) ?
 		     "low" : "high"));
 #else
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	if (IS_ERR_OR_NULL(desc))
 		return ret;
 
@@ -1375,7 +1463,7 @@ static int sdiohal_parse_dt(void)
 		p_data->irq_type = SDIOHAL_RX_POLLING;
 		else {
 			p_data->irq_type = SDIOHAL_RX_EXTERNAL_IRQ;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 			p_data->gpio_num = fwnode_gpiod_get_index(
 				of_fwnode_handle(np), "sdio-ext-int-gpio", 0,
 				GPIOD_IN, "sdiohal-ext-irq");
@@ -1394,7 +1482,7 @@ static int sdiohal_parse_dt(void)
 #endif
 		}
 	#else /* else of CONFIG_WCN_PARSE_DTS */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 		p_data->gpio_num = NULL;
 #else
 		p_data->gpio_num = 0;
@@ -1410,7 +1498,7 @@ static int sdiohal_parse_dt(void)
 		p_data->blk_size = true;
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	sdiohal_info("%s adma_tx:%d, adma_rx:%d, pwrseq:%d, irq type:%s, "
 		     "gpio_num:%p, blksize:%d\n",
 		     __func__, p_data->adma_tx_enable,
@@ -2343,11 +2431,13 @@ void sdiohal_exit(void)
 #ifdef CONFIG_DEBUG_FS
 	sdiohal_debug_deinit();
 #endif
+	/* always unregister so reload without cold-cycle can work */
+	sdio_unregister_driver(&sdiohal_driver);
 	if (WCN_CARD_EXIST(&p_data->xmit_cnt)) {
 		sdiohal_info("Already exist card!\n");
 		sdiohal_remove_card();
 	}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	/* GPIO managed automatically with devm_gpiod_get */
 #else
 	if ((p_data->irq_type == SDIOHAL_RX_EXTERNAL_IRQ) &&

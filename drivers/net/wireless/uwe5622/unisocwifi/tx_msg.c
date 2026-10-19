@@ -879,6 +879,9 @@ static int sprdwl_handle_to_send_list(struct sprdwl_intf *intf,
 		spin_lock_bh(t_lock);
 		tosendnum = get_list_num(to_send_list);
 		spin_unlock_bh(t_lock);
+		/* no multi-node SDIO TX aggregation */
+		if (tosendnum > 1)
+			tosendnum = 1;
 		credit = sprdwl_fc_get_send_num(tx_msg, mode, tosendnum);
 		if (credit < tosendnum)
 			wl_err("%s, %d,error! credit:%d,tosendnum:%d\n",

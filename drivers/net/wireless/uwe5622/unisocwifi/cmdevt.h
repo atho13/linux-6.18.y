@@ -23,7 +23,7 @@
 #include <linux/pm_wakeup.h>
 
 #define SPRDWL_VALID_CONFIG		(0x80)
-#define  CMD_WAIT_TIMEOUT		(3000)
+#define  CMD_WAIT_TIMEOUT		(8000)
 #define CMD_DISCONNECT_TIMEOUT		(5500)
 /* Set scan timeout to 9s due to split scan
  * to several period in CP2

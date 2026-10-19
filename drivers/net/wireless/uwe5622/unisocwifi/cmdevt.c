@@ -260,8 +260,8 @@ int sprdwl_cmd_init(void)
 	cmd->wake_lock = wakeup_source_register(NULL,"Wi-Fi_cmd_wakelock");
 #endif
 	if (!cmd->wake_lock) {
-		wl_err("%s wakeup source register error.\n", __func__);
-		return -EINVAL;
+		/* no wakeup source (PM_SLEEP stub) -> continue; __pm_* accept NULL */
+		wl_err("%s wakeup source register error (continuing).\n", __func__);
 	}
 
 #ifdef CP2_RESET_SUPPORT
@@ -316,6 +316,10 @@ void sprdwl_cmd_deinit(void)
 {
 	unsigned long timeout;
 	struct sprdwl_cmd *cmd = &g_sprdwl_cmd;
+
+	/* probe-fail path may reach here before sprdwl_cmd_init */
+	if (!cmd->wake_lock)
+		return;
 
 	atomic_add(SPRDWL_CMD_EXIT_VAL, &cmd->refcnt);
 	complete(&cmd->completed);
@@ -620,7 +624,7 @@ int sprdwl_cmd_send_recv(struct sprdwl_priv *priv,
 		       ctx_id, cmd2str(cmd_id), cmd_id, le32_to_cpu(hdr->mstime),
 		       tx_msg->cmd_send);
 		if (cmd_id == WIFI_CMD_CLOSE) {
-			sprdwl_atcmd_assert(priv, ctx_id, cmd_id, CMD_RSP_TIMEOUT_ERROR);
+			wl_err("skip assert on CLOSE timeout\n");
 			sprdwl_cmd_unlock(cmd);
 			return ret;
 		}
@@ -629,8 +633,12 @@ int sprdwl_cmd_send_recv(struct sprdwl_priv *priv,
 			intf = (struct sprdwl_intf *)(vif->priv->hw_priv);
 			tx_msg = (struct sprdwl_tx_msg *)intf->sprdwl_tx;
 			if (intf->cp_asserted == 0 &&
-				tx_msg->hang_recovery_status == HANG_RECOVERY_END)
-				sprdwl_send_assert_cmd(vif, cmd_id, CMD_RSP_TIMEOUT_ERROR);
+				tx_msg->hang_recovery_status == HANG_RECOVERY_END) {
+				/* Do not assert the CP on a command timeout: that
+				 * sets card_dump and stops SDIO RX (-ENODEV) for good.
+				 */
+				wl_err("skip assert on %s timeout\n", cmd2str(cmd_id));
+			}
 			sprdwl_put_vif(vif);
 		}
 	}
@@ -735,6 +743,10 @@ static int sprdwl_down_ini_cmd(struct sprdwl_priv *priv,
 	return ret;
 }
 
+/*
+ * INI download failures are logged but do not assert the CP: an assert
+ * sets card_dump and stops SDIO RX until the next power cycle.
+ */
 void sprdwl_download_ini(struct sprdwl_priv *priv)
 {
 #define SEC1	1
@@ -760,9 +772,6 @@ void sprdwl_download_ini(struct sprdwl_priv *priv)
 	if (ret) {
 		wl_err("load ini data failed, return\n");
 		kfree(wifi_data);
-		wlan_set_assert(priv, SPRDWL_MODE_NONE,
-				WIFI_CMD_DOWNLOAD_INI,
-				LOAD_INI_DATA_FAILED);
 		return;
 	}
 
@@ -778,9 +787,6 @@ void sprdwl_download_ini(struct sprdwl_priv *priv)
 	if (ret) {
 		wl_err("download the first section of ini fail,return\n");
 		kfree(wifi_data);
-		wlan_set_assert(priv, SPRDWL_MODE_NONE,
-				WIFI_CMD_DOWNLOAD_INI,
-				DOWNLOAD_INI_DATA_FAILED);
 		return;
 	}
 
@@ -789,9 +795,6 @@ void sprdwl_download_ini(struct sprdwl_priv *priv)
 	if (ret) {
 		wl_err("download the second section of ini fail,return\n");
 		kfree(wifi_data);
-		wlan_set_assert(priv, SPRDWL_MODE_NONE,
-				WIFI_CMD_DOWNLOAD_INI,
-				DOWNLOAD_INI_DATA_FAILED);
 		return;
 	}
 
@@ -803,9 +806,6 @@ void sprdwl_download_ini(struct sprdwl_priv *priv)
 		if (ret) {
 			wl_err("download the third section of ini fail,return\n");
 			kfree(wifi_data);
-			wlan_set_assert(priv, SPRDWL_MODE_NONE,
-					WIFI_CMD_DOWNLOAD_INI,
-					DOWNLOAD_INI_DATA_FAILED);
 			return;
 		}
 	}

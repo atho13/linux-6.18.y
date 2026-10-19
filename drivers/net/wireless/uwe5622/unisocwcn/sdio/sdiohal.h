@@ -345,7 +345,7 @@ struct sdiohal_data_t {
 
 	bool flag_init;
 	atomic_t flag_suspending;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	struct gpio_desc *gpio_num;
 #else
 	int gpio_num;
@@ -390,6 +390,8 @@ struct sdiohal_data_t {
 };
 
 struct sdiohal_data_t *sdiohal_get_data(void);
+/* RX refusal recovery: crafted CMD53 read followed by a CCCR abort */
+void sdiohal_crafted_read(unsigned int claim);
 unsigned char sdiohal_get_tx_mode(void);
 unsigned char sdiohal_get_rx_mode(void);
 unsigned char sdiohal_get_irq_type(void);

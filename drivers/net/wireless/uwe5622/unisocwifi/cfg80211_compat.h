@@ -5,7 +5,7 @@
 
 #include <linux/version.h>
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 
 /* Get net_device from wireless_dev wrapper */
 static inline struct net_device *wdev_to_ndev(struct wireless_dev *wdev)
@@ -13,4 +13,4 @@ static inline struct net_device *wdev_to_ndev(struct wireless_dev *wdev)
 	return wdev ? wdev->netdev : NULL;
 }
 
-#endif /* KERNEL_VERSION(7, 1, 0) */
+#endif /* KERNEL_VERSION(6, 18, 0) */

@@ -15,6 +15,7 @@
  * GNU General Public License for more details.
  */
 
+#include <net/net_namespace.h>
 #include "sprdwl.h"
 #include "npi.h"
 #include "cfg80211.h"
@@ -1063,6 +1064,38 @@ static struct notifier_block sprdwl_inet6addr_cb = {
 #if IS_ENABLED(CONFIG_SUNXI_ADDR_MGT)
 extern int get_custom_mac_address(int fmt, char *name, char *addr);
 #endif
+static char *wlan_mac;
+module_param(wlan_mac, charp, 0444);
+MODULE_PARM_DESC(wlan_mac, "Override wlan MAC aa:bb:cc:dd:ee:ff");
+/* stable fallback MAC: module param, else eth0 MAC with LA bit, last byte ^0x5a */
+static bool sprdwl_derive_mac(u8 *addr)
+{
+	struct net_device *eth;
+	unsigned int m[6];
+	int i;
+
+	if (wlan_mac && sscanf(wlan_mac, "%x:%x:%x:%x:%x:%x",
+			       &m[0], &m[1], &m[2], &m[3], &m[4], &m[5]) == 6) {
+		for (i = 0; i < 6; i++)
+			addr[i] = m[i];
+		if (is_valid_ether_addr(addr)) {
+			pr_info("wlan_mac: using module param %pM\n", addr);
+			return true;
+		}
+	}
+	eth = dev_get_by_name(&init_net, "eth0");
+	if (eth) {
+		ether_addr_copy(addr, eth->dev_addr);
+		dev_put(eth);
+		addr[0] = (addr[0] | 0x02) & 0xfe;
+		addr[5] ^= 0x5a;
+		if (is_valid_ether_addr(addr)) {
+			pr_info("wlan_mac: derived from eth0 %pM\n", addr);
+			return true;
+		}
+	}
+	return false;
+}
 static void sprdwl_set_mac_addr(struct sprdwl_vif *vif, u8 *pending_addr,
 				u8 *addr)
 {
@@ -1091,6 +1124,9 @@ static void sprdwl_set_mac_addr(struct sprdwl_vif *vif, u8 *pending_addr,
 	} else if (priv && is_valid_ether_addr(priv->default_mac)) {
 		ether_addr_copy(addr, priv->default_mac);
 		default_mac_valid = 1;
+	} else if (sprdwl_derive_mac(addr)) {
+		if (priv)
+			ether_addr_copy(priv->mac_addr, addr);
 	} else {
 		printk("no valid mac address!\n");
 	}
@@ -1431,15 +1467,14 @@ static struct sprdwl_vif *sprdwl_register_netdev(struct sprdwl_priv *priv,
 #endif
 	ndev->needed_headroom = priv->skb_head_len;
 	ndev->watchdog_timeo = 2 * HZ;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
-	ndev->features |= NETIF_F_CSUM_MASK;
-#else
-	ndev->features |= NETIF_F_ALL_CSUM;
-#endif
+	/* No TX csum/SG/TSO/GSO offload: the CP crashes on full-size TCP frames with it */
+	ndev->features &= ~(NETIF_F_CSUM_MASK | NETIF_F_SG | NETIF_F_ALL_TSO |
+			    NETIF_F_GSO_MASK);
+	ndev->hw_features &= ~(NETIF_F_CSUM_MASK | NETIF_F_SG | NETIF_F_ALL_TSO |
+			       NETIF_F_GSO_MASK);
 #ifdef RX_NAPI
 	ndev->features |= NETIF_F_GRO;
 #endif
-	ndev->features |= NETIF_F_SG;
 	SET_NETDEV_DEV(ndev, wiphy_dev(priv->wiphy));
 
 	sprdwl_set_mac_addr(vif, addr, target_mac_addr);
