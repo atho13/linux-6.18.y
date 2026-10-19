@@ -114,11 +114,6 @@ static void ws2812_write_array(uint32_t *rgb, uint32_t cnt)
 	spin_unlock_irqrestore(&lock, flags);
 }
 
-static ssize_t ws2812_read(struct file *file, char __user *user, size_t bytesize, loff_t *this_loff_t)
-{
-	return 0;
-}
-
 static ssize_t ws2812_write(struct file *file, const char __user *user_buf, size_t count, loff_t *ppos)
 {
 	uint32_t rgb[255];

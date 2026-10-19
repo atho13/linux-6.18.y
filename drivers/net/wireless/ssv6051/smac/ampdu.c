@@ -1796,18 +1796,6 @@ void ssv6xxx_set_ampdu_rx_del_work(struct work_struct *work)
 	ssv6200_hw_set_rx_ba_session(sc->sh, false, addr, 0, 0, 0);
 }
 
-static void _reset_ampdu_mib(struct ssv_softc *sc,
-			     struct ssv_sta_info *sta_info, void *param)
-{
-	struct ieee80211_sta *sta = sta_info->sta;
-	struct ssv_sta_priv_data *ssv_sta_priv;
-	int i;
-	ssv_sta_priv = (struct ssv_sta_priv_data *)sta->drv_priv;
-	for (i = 0; i < WMM_TID_NUM; i++) {
-		ssv_sta_priv->ampdu_tid[i].ampdu_mib_reset = 1;
-	}
-}
-
 #ifdef CONFIG_SSV6XXX_DEBUGFS
 ssize_t ampdu_tx_mib_dump(struct ssv_sta_priv_data *ssv_sta_priv,
 			  char *mib_str, ssize_t length)
