@@ -162,7 +162,6 @@ struct meson_host {
 	bool ddr;
 
 	bool dram_access_quirk;
-	bool sdio_irq_fastpath;
 
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pins_active;
@@ -973,14 +972,17 @@ static irqreturn_t meson_mmc_irq(int irq, void *dev_id)
 		if (data && !cmd->error)
 			data->bytes_xfered = data->blksz * data->blocks;
 
-		/* W103D's schedutil worker can delay the threaded completion
-		 * by a millisecond per SDIO transaction. Successful terminal
+		/*
+		 * Waking the IRQ thread costs a scheduling round trip per
+		 * SDIO transaction, which a busy RT task such as the schedutil
+		 * worker can stretch to a millisecond. Successful terminal
 		 * CMD52/CMD53 requests need no sleeping work when there is no
-		 * bounce read. DMA unmapping and the MMC completion callback
-		 * are IRQ-safe; do not touch host/cmd after waking the waiter.
-		 * Keep errors, bounce copies and command chains in the thread.
+		 * bounce read: DMA unmapping and mmc_request_done() are
+		 * IRQ-safe. Do not touch host/cmd after completing the request.
+		 * Errors, bounce copies, command chains and hosts using the
+		 * SRAM bounce buffer stay in the thread.
 		 */
-		if (host->sdio_irq_fastpath &&
+		if (!host->dram_access_quirk &&
 		    (cmd->opcode == SD_IO_RW_DIRECT ||
 		     cmd->opcode == SD_IO_RW_EXTENDED) &&
 		    (!data || !data->error) &&
@@ -1235,11 +1237,6 @@ static int meson_mmc_probe(struct platform_device *pdev)
 	writel(0, host->regs + SD_EMMC_IRQ_EN);
 	writel(IRQ_EN_MASK, host->regs + SD_EMMC_STATUS);
 	writel(IRQ_EN_MASK, host->regs + SD_EMMC_IRQ_EN);
-
-	host->sdio_irq_fastpath = of_machine_is_compatible("zte,w103d") &&
-				  !host->dram_access_quirk;
-	if (host->sdio_irq_fastpath)
-		dev_dbg(host->dev, "W103D: direct completion for copy-free SDIO requests\n");
 
 	ret = request_threaded_irq(host->irq, meson_mmc_irq,
 				   meson_mmc_irq_thread, IRQF_ONESHOT,
