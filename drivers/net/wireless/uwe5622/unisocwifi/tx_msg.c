@@ -19,6 +19,7 @@
 #include <linux/utsname.h>
 #include <linux/kernel.h>
 #include <linux/workqueue.h>
+#include <linux/moduleparam.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <net/ip.h>
@@ -858,6 +859,11 @@ static int handle_tx_timeout(struct sprdwl_tx_msg *tx_msg,
 	return 0;
 }
 
+static unsigned int tx_aggr;
+module_param(tx_aggr, uint, 0644);
+MODULE_PARM_DESC(tx_aggr,
+		 "Max data frames handed to the bus per TX push (0: no limit)");
+
 static int sprdwl_handle_to_send_list(struct sprdwl_intf *intf,
 				      enum sprdwl_mode mode)
 {
@@ -867,6 +873,7 @@ static int sprdwl_handle_to_send_list(struct sprdwl_intf *intf,
 	int tosendnum = 0, credit = 0, ret = 0;
 	struct sprdwl_msg_list *list = &tx_msg->tx_list_qos_pool;
 	u8 coex_bt_on = intf->coex_bt_on;
+	unsigned int aggr;
 
 #ifdef CP2_RESET_SUPPORT
 	if (intf->cp_asserted == 1)
@@ -879,9 +886,9 @@ static int sprdwl_handle_to_send_list(struct sprdwl_intf *intf,
 		spin_lock_bh(t_lock);
 		tosendnum = get_list_num(to_send_list);
 		spin_unlock_bh(t_lock);
-		/* no multi-node SDIO TX aggregation */
-		if (tosendnum > 1)
-			tosendnum = 1;
+		aggr = READ_ONCE(tx_aggr);
+		if (aggr && tosendnum > aggr)
+			tosendnum = aggr;
 		credit = sprdwl_fc_get_send_num(tx_msg, mode, tosendnum);
 		if (credit < tosendnum)
 			wl_err("%s, %d,error! credit:%d,tosendnum:%d\n",

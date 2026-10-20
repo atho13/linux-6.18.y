@@ -257,7 +257,7 @@ MODULE_PARM_DESC(xfer_max,
 unsigned int sdiohal_tx_xfer_limit;
 module_param_named(tx_xfer_max, sdiohal_tx_xfer_limit, uint, 0644);
 MODULE_PARM_DESC(tx_xfer_max,
-		 "Max bytes per packed SDIO TX write (0: same as xfer_max)");
+		 "Max bytes per packed SDIO TX write (0: 65536 on hosts without the dram-access quirk, else same as xfer_max)");
 
 static void sdiohal_init_host_tuning(struct mmc_host *host)
 {
@@ -267,6 +267,8 @@ static void sdiohal_init_host_tuning(struct mmc_host *host)
 	if (!sdiohal_rx_xfer_limit)
 		sdiohal_rx_xfer_limit = quirk ? SDIOHAL_XFER_MAX_QUIRK :
 					SDIOHAL_RX_XFER_MAX_DEFAULT;
+	if (!sdiohal_tx_xfer_limit && !quirk)
+		sdiohal_tx_xfer_limit = SDIOHAL_TX_XFER_MAX_DEFAULT;
 	sdiohal_rx_init_tuning(quirk);
 
 	sdiohal_info("%s: %sdram-access quirk, rx xfer max %u, tx xfer max %u\n",

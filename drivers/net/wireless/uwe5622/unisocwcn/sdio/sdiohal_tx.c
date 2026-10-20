@@ -94,6 +94,12 @@ int sdiohal_tx_data_list_send(struct sdiohal_list_t *data_list,
 	struct sdiohal_data_t *p_data = sdiohal_get_data();
 	struct mbuf_t *mbuf_node;
 	unsigned int i, xfer_max = sdiohal_tx_xfer_max();
+	/*
+	 * Multi-packet writes hang once a crafted RX recovery read has
+	 * aborted the function, so send one packet per write while that
+	 * recovery is in use.
+	 */
+	bool one_per_write = sdiohal_rx_crafted_recovery();
 	int ret = 0;
 
 	sdiohal_sdma_enter();
@@ -106,10 +112,11 @@ int sdiohal_tx_data_list_send(struct sdiohal_list_t *data_list,
 			SDIOHAL_ALIGN_4BYTE(mbuf_node->len)
 				> SDIOHAL_TX_SENDBUF_LEN ||
 		    (p_data->send_buf.used_len &&
-		     SDIOHAL_ALIGN_BLK(p_data->send_buf.used_len +
+		     (one_per_write ||
+		      SDIOHAL_ALIGN_BLK(p_data->send_buf.used_len +
 			sizeof(struct sdio_puh_t) +
 			SDIOHAL_ALIGN_4BYTE(mbuf_node->len) +
-			SDIO_PUB_HEADER_SIZE) > xfer_max)) {
+			SDIO_PUB_HEADER_SIZE) > xfer_max))) {
 			tx_split_cnt++;
 			if (tx_split_cnt <= 20 ||
 			    !(tx_split_cnt % 1000))

@@ -517,11 +517,12 @@ void sdiohal_dump_aon_reg(void);
  * Largest single CMD53 transfer.  Amlogic sd_emmc controllers flagged
  * with "amlogic,dram-access-quirk" (sd_emmc_a on G12A) move data through
  * a 1536-byte SRAM buffer and cannot do larger requests.  Other hosts get
- * a larger default at probe time unless set by module parameter.  A TX
+ * larger defaults at probe time unless set by module parameter.  A TX
  * limit of 0 follows the RX limit.
  */
 #define SDIOHAL_XFER_MAX_QUIRK		1536
 #define SDIOHAL_RX_XFER_MAX_DEFAULT	32768
+#define SDIOHAL_TX_XFER_MAX_DEFAULT	65536
 
 extern unsigned int sdiohal_rx_xfer_limit;
 extern unsigned int sdiohal_tx_xfer_limit;
