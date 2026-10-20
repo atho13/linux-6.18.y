@@ -96,26 +96,55 @@ void extern_bt_set_enable(int is_on)
 	extern_wifi_set_enable(is_on);
 }
 
-static struct mmc_host *aml_get_mmc0_host(void)
+static char *sdio_host;
+module_param(sdio_host, charp, 0444);
+MODULE_PARM_DESC(sdio_host,
+		 "Platform device name of the Wi-Fi SDIO host (default: sd_emmc_a, then sd_emmc_b)");
+
+static unsigned int sdio_f_max;
+module_param(sdio_f_max, uint, 0444);
+MODULE_PARM_DESC(sdio_f_max,
+		 "Limit the SDIO host clock to this rate in Hz on card reset (0: no limit)");
+
+static struct mmc_host *aml_find_mmc_host(const char *name)
 {
 	struct device *dev;
 	struct aml_meson_host_hdr *hdr;
-	static const char * const names[] = {
-		"ffe03000.mmc", "mmc@ffe03000", NULL
-	};
-	int i;
 
-	for (i = 0; names[i]; i++) {
-		dev = bus_find_device_by_name(&platform_bus_type, NULL, names[i]);
-		if (!dev)
-			continue;
-		hdr = dev_get_drvdata(dev);
-		put_device(dev);
-		if (hdr && hdr->mmc) {
-			pr_info(STUB_TAG "found mmc host via %s (%s)\n",
-				names[i], mmc_hostname(hdr->mmc));
-			return hdr->mmc;
-		}
+	dev = bus_find_device_by_name(&platform_bus_type, NULL, name);
+	if (!dev)
+		return NULL;
+	hdr = dev_get_drvdata(dev);
+	put_device(dev);
+	if (!hdr || !hdr->mmc)
+		return NULL;
+
+	pr_info(STUB_TAG "found mmc host via %s (%s)\n",
+		name, mmc_hostname(hdr->mmc));
+	return hdr->mmc;
+}
+
+static struct mmc_host *aml_get_mmc0_host(void)
+{
+	/*
+	 * Depending on the device tree the module sits on sd_emmc_a or on
+	 * sd_emmc_b.  Disabled controllers
+	 * have no platform device, so probing sd_emmc_a first is safe on both
+	 * and never picks sd_emmc_b while it serves the SD card slot.
+	 */
+	static const char * const names[] = {
+		"ffe03000.mmc", "mmc@ffe03000", "ffe05000.mmc",
+	};
+	struct mmc_host *host;
+	unsigned int i;
+
+	if (sdio_host && *sdio_host)
+		return aml_find_mmc_host(sdio_host);
+
+	for (i = 0; i < ARRAY_SIZE(names); i++) {
+		host = aml_find_mmc_host(names[i]);
+		if (host)
+			return host;
 	}
 	return NULL;
 }
@@ -135,6 +164,16 @@ void sdio_reinit(void)
 		mmc_detect_change(host, msecs_to_jiffies(100));
 		msleep(500);
 		return;
+	}
+	/*
+	 * SDR104 at the DT max-frequency (200 MHz) is not reliable on every
+	 * board; the vendor Android image runs this module at 166 MHz.  The
+	 * new limit takes effect when the card is re-initialised below.
+	 */
+	if (sdio_f_max && sdio_f_max < host->f_max) {
+		pr_info(STUB_TAG "%s: limit %s f_max %u -> %u\n", __func__,
+			mmc_hostname(host), host->f_max, sdio_f_max);
+		host->f_max = sdio_f_max;
 	}
 	pr_info(STUB_TAG "%s: mmc_hw_reset(%s)\n", __func__, mmc_hostname(host));
 	/* mmc_hw_reset needs claimed host */
