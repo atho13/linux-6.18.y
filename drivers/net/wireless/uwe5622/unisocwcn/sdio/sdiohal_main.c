@@ -267,6 +267,7 @@ static void sdiohal_init_host_tuning(struct mmc_host *host)
 	if (!sdiohal_rx_xfer_limit)
 		sdiohal_rx_xfer_limit = quirk ? SDIOHAL_XFER_MAX_QUIRK :
 					SDIOHAL_RX_XFER_MAX_DEFAULT;
+	sdiohal_rx_init_tuning(quirk);
 
 	sdiohal_info("%s: %sdram-access quirk, rx xfer max %u, tx xfer max %u\n",
 		     mmc_hostname(host), quirk ? "" : "no ",

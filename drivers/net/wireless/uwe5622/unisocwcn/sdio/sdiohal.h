@@ -533,6 +533,8 @@ static inline unsigned int sdiohal_rx_xfer_max(void)
 	return max ? max : SDIOHAL_XFER_MAX_QUIRK;
 }
 
+void sdiohal_rx_init_tuning(bool dram_quirk);
+
 static inline unsigned int sdiohal_tx_xfer_max(void)
 {
 	unsigned int max = READ_ONCE(sdiohal_tx_xfer_limit);

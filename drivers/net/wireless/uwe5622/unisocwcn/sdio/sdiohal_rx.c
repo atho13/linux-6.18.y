@@ -216,12 +216,51 @@ static int sdiohal_rx_buf_parser(char *data_buf, int valid_len)
 	return 0;
 }
 
+/*
+ * In polling mode the RX thread sleeps rx_poll_us between empty polls.
+ * Under load the CP refills its buffer much faster than that, so for the
+ * first rx_busy_poll_n empty polls after data sleep rx_busy_poll_us
+ * instead.
+ */
+static unsigned int rx_poll_us = 20000;
+module_param(rx_poll_us, uint, 0644);
+MODULE_PARM_DESC(rx_poll_us, "RX poll interval in us while idle");
+
+static int rx_busy_poll_us = -1;
+module_param(rx_busy_poll_us, int, 0644);
+MODULE_PARM_DESC(rx_busy_poll_us,
+		 "RX poll interval in us right after traffic (0: off, -1: 0 on dram-access-quirk hosts, else 500)");
+
+static unsigned int rx_busy_poll_n = 200;
+module_param(rx_busy_poll_n, uint, 0644);
+MODULE_PARM_DESC(rx_busy_poll_n,
+		 "Empty polls after traffic that use rx_busy_poll_us");
+
+static unsigned int sdiohal_rx_idle_polls = UINT_MAX;
+
+void sdiohal_rx_init_tuning(bool dram_quirk)
+{
+	if (rx_busy_poll_us < 0)
+		rx_busy_poll_us = dram_quirk ? 0 : 500;
+}
+
 static void sdiohal_rx_wait(void)
 {
 	struct sdiohal_data_t *p_data = sdiohal_get_data();
 
 	while (1) {
-		msleep(20); /* polling RX, was 300 */
+		unsigned int us = READ_ONCE(rx_poll_us);
+		int busy_us = READ_ONCE(rx_busy_poll_us);
+
+		if (busy_us > 0 &&
+		    sdiohal_rx_idle_polls < READ_ONCE(rx_busy_poll_n))
+			us = busy_us;
+		if (us >= 20000)
+			msleep(us / 1000);
+		else if (us)
+			usleep_range(us, us + us / 4 + 20);
+		else
+			cond_resched();
 		if (WCN_CARD_EXIST(&p_data->xmit_cnt))
 			break;
 	}
@@ -431,6 +470,10 @@ read_again:
 				}
 			}
 			sdiohal_rx_buf_parser(rx_buf, valid_len);
+			if (valid_len)
+				sdiohal_rx_idle_polls = 0;
+			else if (sdiohal_rx_idle_polls != UINT_MAX)
+				sdiohal_rx_idle_polls++;
 		}
 
 submit_list:
