@@ -26,6 +26,32 @@ static void rx_rec_count(unsigned int *claim0, unsigned int *claimn)
 		(*claimn)++;
 }
 
+/*
+ * The CP sometimes answers a read with no data while still reporting data
+ * to be sent (dtbs).  On sd_emmc_a this is cleared with a crafted CMD53
+ * read followed by a CCCR I/O abort.  After such an abort the CP can no
+ * longer complete a multi-packet TX write and the host request never
+ * finishes.  Hosts without the dram-access quirk recover with a plain
+ * re-read, keeping the crafted read only as a fallback.
+ */
+static int rx_refuse_mode = -1;
+module_param(rx_refuse_mode, int, 0644);
+MODULE_PARM_DESC(rx_refuse_mode,
+		 "CP RX refusal recovery: 0 crafted read + abort, 1 re-read first (-1: 0 on dram-access-quirk hosts, else 1)");
+
+static unsigned int rx_refuse_plain_n = 4;
+module_param(rx_refuse_plain_n, uint, 0644);
+MODULE_PARM_DESC(rx_refuse_plain_n,
+		 "Re-reads per refusal before falling back to the crafted read");
+
+static unsigned int rx_refuse_us = 200;
+module_param(rx_refuse_us, uint, 0644);
+MODULE_PARM_DESC(rx_refuse_us, "Delay in us before a re-read");
+
+static unsigned int rx_plain_cnt, rx_crafted_cnt;
+module_param_named(rx_refuse_plain, rx_plain_cnt, uint, 0444);
+module_param_named(rx_refuse_crafted, rx_crafted_cnt, uint, 0444);
+
 static unsigned int sdiohal_rx_adapt_get(void)
 {
 	struct sdiohal_data_t *p_data = sdiohal_get_data();
@@ -242,6 +268,34 @@ void sdiohal_rx_init_tuning(bool dram_quirk)
 {
 	if (rx_busy_poll_us < 0)
 		rx_busy_poll_us = dram_quirk ? 0 : 500;
+	if (rx_refuse_mode < 0)
+		rx_refuse_mode = dram_quirk ? 0 : 1;
+}
+
+bool sdiohal_rx_crafted_recovery(void)
+{
+	return READ_ONCE(rx_refuse_mode) <= 0;
+}
+
+static void sdiohal_rx_recover_refusal(int try, unsigned int claim)
+{
+	unsigned int us;
+
+	if (!sdiohal_rx_crafted_recovery() &&
+	    try <= READ_ONCE(rx_refuse_plain_n)) {
+		/* rx_dtbs is kept, so the next read asks for the data again */
+		rx_plain_cnt++;
+		us = READ_ONCE(rx_refuse_us);
+		if (us)
+			usleep_range(us, us + 50);
+		return;
+	}
+
+	if (try > 8)
+		usleep_range(1000, 2000);
+	rx_crafted_cnt++;
+	sdiohal_crafted_read(claim);
+	rx_rec_pending = 1;
 }
 
 static void sdiohal_rx_wait(void)
@@ -431,10 +485,7 @@ read_again:
 						pr_debug("rx_recov: refuse ep=%u try=%d dtbs=%u n=%u claim=%u\n",
 							 rx_refuse_ep, rx_rec_try, rx_dtbs,
 							 rx_refuse_n, claim);
-					if (rx_rec_try > 8)
-						usleep_range(1000, 2000);
-					sdiohal_crafted_read(claim);
-					rx_rec_pending = 1;
+					sdiohal_rx_recover_refusal(rx_rec_try, claim);
 				}
 			}
 			sdiohal_debug("%s rx_dtbs:%d,valid len:%d\n",

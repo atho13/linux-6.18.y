@@ -521,7 +521,7 @@ void sdiohal_dump_aon_reg(void);
  * limit of 0 follows the RX limit.
  */
 #define SDIOHAL_XFER_MAX_QUIRK		1536
-#define SDIOHAL_RX_XFER_MAX_DEFAULT	3072
+#define SDIOHAL_RX_XFER_MAX_DEFAULT	32768
 
 extern unsigned int sdiohal_rx_xfer_limit;
 extern unsigned int sdiohal_tx_xfer_limit;
@@ -534,6 +534,7 @@ static inline unsigned int sdiohal_rx_xfer_max(void)
 }
 
 void sdiohal_rx_init_tuning(bool dram_quirk);
+bool sdiohal_rx_crafted_recovery(void);
 
 static inline unsigned int sdiohal_tx_xfer_max(void)
 {

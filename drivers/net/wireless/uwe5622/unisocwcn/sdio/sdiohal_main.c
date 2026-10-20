@@ -252,7 +252,7 @@ static void sdiohal_abort(void)
 unsigned int sdiohal_rx_xfer_limit;
 module_param_named(xfer_max, sdiohal_rx_xfer_limit, uint, 0644);
 MODULE_PARM_DESC(xfer_max,
-		 "Max bytes per SDIO RX read (0: 1536 on dram-access-quirk hosts, else 3072)");
+		 "Max bytes per SDIO RX read (0: 1536 on dram-access-quirk hosts, else 32768)");
 
 unsigned int sdiohal_tx_xfer_limit;
 module_param_named(tx_xfer_max, sdiohal_tx_xfer_limit, uint, 0644);
