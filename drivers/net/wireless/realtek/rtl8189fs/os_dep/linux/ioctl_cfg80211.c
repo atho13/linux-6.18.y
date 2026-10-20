@@ -7303,7 +7303,7 @@ static int cfg80211_rtw_mgmt_tx(struct wiphy *wiphy,
 #else
 	struct cfg80211_mgmt_tx_params *params,
 #endif
-	u64 *cookie)
+	u64 cookie)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)) || defined(COMPAT_KERNEL_RELEASE)
 	struct ieee80211_channel *chan = params->chan;
