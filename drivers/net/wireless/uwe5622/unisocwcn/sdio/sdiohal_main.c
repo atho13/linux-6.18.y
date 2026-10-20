@@ -249,6 +249,30 @@ static void sdiohal_abort(void)
 	sdio_release_host(p_data->sdio_func[FUNC_0]);
 }
 
+unsigned int sdiohal_rx_xfer_limit;
+module_param_named(xfer_max, sdiohal_rx_xfer_limit, uint, 0644);
+MODULE_PARM_DESC(xfer_max,
+		 "Max bytes per SDIO RX read (0: 1536 on dram-access-quirk hosts, else 3072)");
+
+unsigned int sdiohal_tx_xfer_limit;
+module_param_named(tx_xfer_max, sdiohal_tx_xfer_limit, uint, 0644);
+MODULE_PARM_DESC(tx_xfer_max,
+		 "Max bytes per packed SDIO TX write (0: same as xfer_max)");
+
+static void sdiohal_init_host_tuning(struct mmc_host *host)
+{
+	bool quirk = of_property_read_bool(mmc_dev(host)->of_node,
+					   "amlogic,dram-access-quirk");
+
+	if (!sdiohal_rx_xfer_limit)
+		sdiohal_rx_xfer_limit = quirk ? SDIOHAL_XFER_MAX_QUIRK :
+					SDIOHAL_RX_XFER_MAX_DEFAULT;
+
+	sdiohal_info("%s: %sdram-access quirk, rx xfer max %u, tx xfer max %u\n",
+		     mmc_hostname(host), quirk ? "" : "no ",
+		     sdiohal_rx_xfer_max(), sdiohal_tx_xfer_max());
+}
+
 /* RX refusal recovery: CMD53 read claiming @claim blocks, transfer 3, then CCCR abort */
 void sdiohal_crafted_read(unsigned int claim)
 {
@@ -2052,6 +2076,7 @@ static int sdiohal_probe(struct sdio_func *func,
 		return -1;
 	}
 	sdiohal_debug("get host ok!!!");
+	sdiohal_init_host_tuning(p_data->sdio_dev_host);
 
 	atomic_set(&p_data->xmit_start, 1);
 

@@ -1,7 +1,5 @@
 #include "sdiohal.h"
 
-/* Transfer size limit of the SRAM bounce buffer (dram-access quirk) */
-#define SDIOHAL_XFER_MAX 1536
 static unsigned int rx_cap_cnt;
 static int rx_rec_try, rx_rec_pending;
 static unsigned int rx_rec_ok, rx_rec_bad, rx_refuse_n;
@@ -306,7 +304,7 @@ read_again:
 			kfree(data_list);
 			data_list = NULL;
 		} else {
-			unsigned int alloc_size;
+			unsigned int alloc_size, xfer_max;
 
 			/* read len is packet data len */
 			read_len = sdiohal_rx_adapt_get();
@@ -326,14 +324,15 @@ read_again:
 				sdiohal_debug("alloc_size=%d < read_len=%d\n",
 					      alloc_size, read_len);
 			}
-			if (read_len > SDIOHAL_XFER_MAX) {
+			xfer_max = sdiohal_rx_xfer_max();
+			if (read_len > xfer_max) {
 				rx_cap_cnt++;
 				if (rx_cap_cnt <= 20 ||
 				    !(rx_cap_cnt % 1000))
-					pr_debug("xfer_cap: rx want=%d cap=%d n=%u\n",
-						 read_len, SDIOHAL_XFER_MAX,
+					pr_debug("xfer_cap: rx want=%d cap=%u n=%u\n",
+						 read_len, xfer_max,
 						 rx_cap_cnt);
-				read_len = SDIOHAL_XFER_MAX;
+				read_len = xfer_max;
 			}
 
 			ret = sdiohal_sdio_pt_read(rx_buf, read_len);
@@ -374,7 +373,7 @@ read_again:
 				if (valid_len || rx_dtbs == 0)
 					rx_rec_try = 0;	/* any normal read ends the episode */
 				if (valid_len == 0 && rx_dtbs > 0 &&
-				    read_len <= SDIOHAL_XFER_MAX) {
+				    read_len <= xfer_max) {
 					unsigned int claim;
 
 					if (rx_rec_try == 0)
