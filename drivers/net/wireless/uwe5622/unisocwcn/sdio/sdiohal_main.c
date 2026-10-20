@@ -259,6 +259,15 @@ module_param_named(tx_xfer_max, sdiohal_tx_xfer_limit, uint, 0644);
 MODULE_PARM_DESC(tx_xfer_max,
 		 "Max bytes per packed SDIO TX write (0: 65536 on hosts without the dram-access quirk, else same as xfer_max)");
 
+/*
+ * The build selects RX polling on Amlogic boards.  Hosts that support SDIO
+ * interrupts (cap-sdio-irq) can use in-band interrupts instead.
+ */
+static int sdiohal_irq_type_param = -1;
+module_param_named(irq_type, sdiohal_irq_type_param, int, 0444);
+MODULE_PARM_DESC(irq_type,
+		 "RX interrupt mode: 1 in-band SDIO interrupt, 2 polling (-1: build default)");
+
 static void sdiohal_init_host_tuning(struct mmc_host *host)
 {
 	bool quirk = of_property_read_bool(mmc_dev(host)->of_node,
@@ -1524,6 +1533,10 @@ static int sdiohal_parse_dt(void)
 	if (of_get_property(np, "blksz-512", NULL))
 		p_data->blk_size = true;
 #endif
+
+	if (sdiohal_irq_type_param == SDIOHAL_RX_INBAND_IRQ ||
+	    sdiohal_irq_type_param == SDIOHAL_RX_POLLING)
+		p_data->irq_type = sdiohal_irq_type_param;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
 	sdiohal_info("%s adma_tx:%d, adma_rx:%d, pwrseq:%d, irq type:%s, "
