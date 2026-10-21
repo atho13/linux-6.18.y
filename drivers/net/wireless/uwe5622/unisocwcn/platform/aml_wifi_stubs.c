@@ -29,16 +29,6 @@
 #define GPIO_IRQ_LOW 0
 #endif
 
-/*
- * Prefix of drivers/mmc/host/meson-gx-mmc.c::struct meson_host —
- * must stay in sync with that driver's first three fields.
- */
-struct aml_meson_host_hdr {
-	struct device *dev;
-	const void *data;
-	struct mmc_host *mmc;
-};
-
 static DEFINE_MUTEX(wifi_en_lock);
 static struct gpio_desc *wifi_en_gpio;
 
@@ -99,29 +89,50 @@ void extern_bt_set_enable(int is_on)
 static char *sdio_host;
 module_param(sdio_host, charp, 0444);
 MODULE_PARM_DESC(sdio_host,
-		 "Platform device name of the Wi-Fi SDIO host (default: sd_emmc_a, then sd_emmc_b)");
+		 "Platform device name of the Wi-Fi SDIO host controller or of its slot (default: sd_emmc_a, then sd_emmc_b)");
 
 static unsigned int sdio_f_max;
 module_param(sdio_f_max, uint, 0444);
 MODULE_PARM_DESC(sdio_f_max,
 		 "Limit the SDIO host clock to this rate in Hz on card reset (0: no limit)");
 
+/*
+ * Find the mmc_host class device below a controller. A multi-slot
+ * controller has one platform device per slot in between, so look one
+ * level further down. Prefer a non-removable host, which is where an
+ * on-board module sits.
+ */
+static int aml_match_mmc_host(struct device *dev, void *data)
+{
+	struct mmc_host **found = data;
+	struct mmc_host *host;
+
+	if (!dev->class || strcmp(dev->class->name, "mmc_host"))
+		return device_for_each_child(dev, data, aml_match_mmc_host);
+
+	host = container_of(dev, struct mmc_host, class_dev);
+	if (!*found || (host->caps & MMC_CAP_NONREMOVABLE &&
+			!((*found)->caps & MMC_CAP_NONREMOVABLE)))
+		*found = host;
+	return 0;
+}
+
 static struct mmc_host *aml_find_mmc_host(const char *name)
 {
+	struct mmc_host *host = NULL;
 	struct device *dev;
-	struct aml_meson_host_hdr *hdr;
 
 	dev = bus_find_device_by_name(&platform_bus_type, NULL, name);
 	if (!dev)
 		return NULL;
-	hdr = dev_get_drvdata(dev);
+	device_for_each_child(dev, &host, aml_match_mmc_host);
 	put_device(dev);
-	if (!hdr || !hdr->mmc)
+	if (!host)
 		return NULL;
 
 	pr_info(STUB_TAG "found mmc host via %s (%s)\n",
-		name, mmc_hostname(hdr->mmc));
-	return hdr->mmc;
+		name, mmc_hostname(host));
+	return host;
 }
 
 static struct mmc_host *aml_get_mmc0_host(void)
