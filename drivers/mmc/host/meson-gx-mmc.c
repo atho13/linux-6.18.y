@@ -149,25 +149,38 @@ struct sd_emmc_desc {
 	u32 cmd_resp;
 };
 
+struct meson_host;
+
+/* Per card slot state, the private data of each mmc_host */
+struct meson_slot {
+	struct mmc_host *mmc;
+	struct meson_host *host;
+
+	unsigned long req_rate;
+	bool ddr;
+
+	struct pinctrl_state *pins_active;
+	struct pinctrl_state *pins_clk_gate;
+	struct pinctrl_state *pins_sdio_transfer;
+	struct pinctrl_state *pins_sdio_transfer_clk_gate;
+};
+
 struct meson_host {
 	struct	device		*dev;
 	const struct meson_mmc_data *data;
 	struct	mmc_host	*mmc;
 	struct	mmc_command	*cmd;
 
+	/* slot the controller is currently set up for */
+	struct meson_slot *cur_slot;
+
 	void __iomem *regs;
 	struct clk *mux_clk;
 	struct clk *mmc_clk;
-	unsigned long req_rate;
-	bool ddr;
 
 	bool dram_access_quirk;
 
 	struct pinctrl *pinctrl;
-	struct pinctrl_state *pins_active;
-	struct pinctrl_state *pins_clk_gate;
-	struct pinctrl_state *pins_sdio_transfer;
-	struct pinctrl_state *pins_sdio_transfer_clk_gate;
 
 	unsigned int bounce_buf_size;
 	void *bounce_buf;
@@ -182,6 +195,13 @@ struct meson_host {
 
 	spinlock_t lock;
 };
+
+static inline struct meson_host *meson_mmc_to_host(struct mmc_host *mmc)
+{
+	struct meson_slot *slot = mmc_priv(mmc);
+
+	return slot->host;
+}
 
 #define CMD_CFG_LENGTH_MASK GENMASK(8, 0)
 #define CMD_CFG_BLOCK_MODE BIT(9)
@@ -232,7 +252,7 @@ static struct mmc_command *meson_mmc_get_next_command(struct mmc_command *cmd)
 static void meson_mmc_get_transfer_mode(struct mmc_host *mmc,
 					struct mmc_request *mrq)
 {
-	struct meson_host *host = mmc_priv(mmc);
+	struct meson_host *host = meson_mmc_to_host(mmc);
 	struct mmc_data *data = mrq->data;
 	struct scatterlist *sg;
 	int i;
@@ -291,6 +311,7 @@ static inline bool meson_mmc_bounce_buf_read(const struct mmc_data *data)
 
 static void meson_mmc_pre_req(struct mmc_host *mmc, struct mmc_request *mrq)
 {
+	struct meson_host *host = meson_mmc_to_host(mmc);
 	struct mmc_data *data = mrq->data;
 
 	if (!data)
@@ -302,8 +323,8 @@ static void meson_mmc_pre_req(struct mmc_host *mmc, struct mmc_request *mrq)
 	if (!meson_mmc_desc_chain_mode(data))
 		return;
 
-	data->sg_count = dma_map_sg(mmc_dev(mmc), data->sg, data->sg_len,
-                                   mmc_get_dma_dir(data));
+	data->sg_count = dma_map_sg(host->dev, data->sg, data->sg_len,
+				    mmc_get_dma_dir(data));
 	if (!data->sg_count)
 		dev_err(mmc_dev(mmc), "dma_map_sg failed");
 }
@@ -311,10 +332,11 @@ static void meson_mmc_pre_req(struct mmc_host *mmc, struct mmc_request *mrq)
 static void meson_mmc_post_req(struct mmc_host *mmc, struct mmc_request *mrq,
 			       int err)
 {
+	struct meson_host *host = meson_mmc_to_host(mmc);
 	struct mmc_data *data = mrq->data;
 
 	if (data && meson_mmc_desc_chain_mode(data) && data->sg_count)
-		dma_unmap_sg(mmc_dev(mmc), data->sg, data->sg_len,
+		dma_unmap_sg(host->dev, data->sg, data->sg_len,
 			     mmc_get_dma_dir(data));
 }
 
@@ -324,12 +346,13 @@ static void meson_mmc_post_req(struct mmc_host *mmc, struct mmc_request *mrq,
  * clock is stopped.  The safest thing to do, whenever possible, is to keep
  * clock running at stop it at the pad using the pinmux.
  */
-static void meson_mmc_clk_gate(struct meson_host *host)
+static void meson_mmc_clk_gate(struct meson_slot *slot)
 {
+	struct meson_host *host = slot->host;
 	u32 cfg;
 
-	if (host->pins_clk_gate) {
-		pinctrl_select_state(host->pinctrl, host->pins_clk_gate);
+	if (slot->pins_clk_gate) {
+		pinctrl_select_state(host->pinctrl, slot->pins_clk_gate);
 	} else {
 		/*
 		 * If the pinmux is not provided - default to the classic and
@@ -341,13 +364,14 @@ static void meson_mmc_clk_gate(struct meson_host *host)
 	}
 }
 
-static void meson_mmc_clk_ungate(struct meson_host *host)
+static void meson_mmc_clk_ungate(struct meson_slot *slot)
 {
+	struct meson_host *host = slot->host;
 	u32 cfg;
 
-	if (host->pins_clk_gate) {
-		if (host->pins_active)
-			pinctrl_select_state(host->pinctrl, host->pins_active);
+	if (slot->pins_clk_gate) {
+		if (slot->pins_active)
+			pinctrl_select_state(host->pinctrl, slot->pins_active);
 		else
 			pinctrl_select_default_state(host->dev);
 	}
@@ -358,20 +382,21 @@ static void meson_mmc_clk_ungate(struct meson_host *host)
 	writel(cfg, host->regs + SD_EMMC_CFG);
 }
 
-static int meson_mmc_clk_set(struct meson_host *host, unsigned long rate,
+static int meson_mmc_clk_set(struct meson_slot *slot, unsigned long rate,
 			     bool ddr)
 {
-	struct mmc_host *mmc = host->mmc;
+	struct meson_host *host = slot->host;
+	struct mmc_host *mmc = slot->mmc;
 	int ret;
 	u32 cfg;
 
 	/* Same request - bail-out */
-	if (host->ddr == ddr && host->req_rate == rate)
+	if (slot->ddr == ddr && slot->req_rate == rate)
 		return 0;
 
 	/* stop clock */
-	meson_mmc_clk_gate(host);
-	host->req_rate = 0;
+	meson_mmc_clk_gate(slot);
+	slot->req_rate = 0;
 	mmc->actual_clock = 0;
 
 	/* return with clock being stopped */
@@ -391,7 +416,7 @@ static int meson_mmc_clk_set(struct meson_host *host, unsigned long rate,
 		cfg &= ~CFG_DDR;
 	}
 	writel(cfg, host->regs + SD_EMMC_CFG);
-	host->ddr = ddr;
+	slot->ddr = ddr;
 
 	ret = clk_set_rate(host->mmc_clk, rate);
 	if (ret) {
@@ -400,12 +425,12 @@ static int meson_mmc_clk_set(struct meson_host *host, unsigned long rate,
 		return ret;
 	}
 
-	host->req_rate = rate;
+	slot->req_rate = rate;
 	mmc->actual_clock = clk_get_rate(host->mmc_clk);
 
 	/* We should report the real output frequency of the controller */
 	if (ddr) {
-		host->req_rate >>= 1;
+		slot->req_rate >>= 1;
 		mmc->actual_clock >>= 1;
 	}
 
@@ -414,7 +439,7 @@ static int meson_mmc_clk_set(struct meson_host *host, unsigned long rate,
 		dev_dbg(host->dev, "requested rate was %lu\n", rate);
 
 	/* (re)start clock */
-	meson_mmc_clk_ungate(host);
+	meson_mmc_clk_ungate(slot);
 
 	return 0;
 }
@@ -533,19 +558,20 @@ static void meson_mmc_reset_resampling(struct meson_host *host)
 
 static int meson_mmc_resampling_tuning(struct mmc_host *mmc, u32 opcode)
 {
-	struct meson_host *host = mmc_priv(mmc);
+	struct meson_slot *slot = mmc_priv(mmc);
+	struct meson_host *host = slot->host;
 	unsigned int val, dly, max_dly, i;
 	int ret;
 
-	if (host->pins_sdio_transfer &&
-	    host->pins_active != host->pins_sdio_transfer) {
+	if (slot->pins_sdio_transfer &&
+	    slot->pins_active != slot->pins_sdio_transfer) {
 		ret = pinctrl_select_state(host->pinctrl,
-					   host->pins_sdio_transfer);
+					   slot->pins_sdio_transfer);
 		if (ret)
 			return ret;
 
-		host->pins_active = host->pins_sdio_transfer;
-		host->pins_clk_gate = host->pins_sdio_transfer_clk_gate;
+		slot->pins_active = slot->pins_sdio_transfer;
+		slot->pins_clk_gate = slot->pins_sdio_transfer_clk_gate;
 
 		val = readl(host->regs + host->data->adjust);
 		val &= ~ADJUST_ADJ_DELAY_MASK;
@@ -587,7 +613,7 @@ static int meson_mmc_resampling_tuning(struct mmc_host *mmc, u32 opcode)
 	return -EIO;
 }
 
-static int meson_mmc_prepare_ios_clock(struct meson_host *host,
+static int meson_mmc_prepare_ios_clock(struct meson_slot *slot,
 				       struct mmc_ios *ios)
 {
 	bool ddr;
@@ -603,7 +629,7 @@ static int meson_mmc_prepare_ios_clock(struct meson_host *host,
 		break;
 	}
 
-	return meson_mmc_clk_set(host, ios->clock, ddr);
+	return meson_mmc_clk_set(slot, ios->clock, ddr);
 }
 
 static void meson_mmc_check_resampling(struct meson_host *host,
@@ -621,7 +647,8 @@ static void meson_mmc_check_resampling(struct meson_host *host,
 
 static void meson_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 {
-	struct meson_host *host = mmc_priv(mmc);
+	struct meson_slot *slot = mmc_priv(mmc);
+	struct meson_host *host = slot->host;
 	u32 bus_width, val;
 	int err;
 
@@ -671,7 +698,7 @@ static void meson_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	writel(val, host->regs + SD_EMMC_CFG);
 
 	meson_mmc_check_resampling(host, ios);
-	err = meson_mmc_prepare_ios_clock(host, ios);
+	err = meson_mmc_prepare_ios_clock(slot, ios);
 	if (err)
 		dev_err(host->dev, "Failed to set clock: %d\n,", err);
 
@@ -681,17 +708,17 @@ static void meson_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 static void meson_mmc_request_done(struct mmc_host *mmc,
 				   struct mmc_request *mrq)
 {
-	struct meson_host *host = mmc_priv(mmc);
+	struct meson_host *host = meson_mmc_to_host(mmc);
 
 	host->cmd = NULL;
 	if (host->needs_pre_post_req)
 		meson_mmc_post_req(mmc, mrq, 0);
-	mmc_request_done(host->mmc, mrq);
+	mmc_request_done(mmc, mrq);
 }
 
 static void meson_mmc_set_blksz(struct mmc_host *mmc, unsigned int blksz)
 {
-	struct meson_host *host = mmc_priv(mmc);
+	struct meson_host *host = meson_mmc_to_host(mmc);
 	u32 cfg, blksz_old;
 
 	cfg = readl(host->regs + SD_EMMC_CFG);
@@ -733,7 +760,7 @@ static void meson_mmc_set_response_bits(struct mmc_command *cmd, u32 *cmd_cfg)
 
 static void meson_mmc_desc_chain_transfer(struct mmc_host *mmc, u32 cmd_cfg)
 {
-	struct meson_host *host = mmc_priv(mmc);
+	struct meson_host *host = meson_mmc_to_host(mmc);
 	struct sd_emmc_desc *desc = host->descs;
 	struct mmc_data *data = host->cmd->data;
 	struct scatterlist *sg;
@@ -804,7 +831,7 @@ static void meson_mmc_copy_buffer(struct meson_host *host, struct mmc_data *data
 
 static void meson_mmc_start_cmd(struct mmc_host *mmc, struct mmc_command *cmd)
 {
-	struct meson_host *host = mmc_priv(mmc);
+	struct meson_host *host = meson_mmc_to_host(mmc);
 	struct mmc_data *data = cmd->data;
 	u32 cmd_cfg = 0, cmd_data = 0;
 	unsigned int xfer_bytes = 0;
@@ -869,7 +896,7 @@ static void meson_mmc_start_cmd(struct mmc_host *mmc, struct mmc_command *cmd)
 
 static void meson_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 {
-	struct meson_host *host = mmc_priv(mmc);
+	struct meson_host *host = meson_mmc_to_host(mmc);
 	host->needs_pre_post_req = mrq->data &&
 			!(mrq->data->host_cookie & SD_EMMC_PRE_REQ_DONE);
 
@@ -890,7 +917,7 @@ static void meson_mmc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 static void meson_mmc_read_resp(struct mmc_host *mmc, struct mmc_command *cmd)
 {
-	struct meson_host *host = mmc_priv(mmc);
+	struct meson_host *host = meson_mmc_to_host(mmc);
 
 	if (cmd->flags & MMC_RSP_136) {
 		cmd->resp[0] = readl(host->regs + SD_EMMC_CMD_RSP3);
@@ -904,7 +931,7 @@ static void meson_mmc_read_resp(struct mmc_host *mmc, struct mmc_command *cmd)
 
 static void __meson_mmc_enable_sdio_irq(struct mmc_host *mmc, int enable)
 {
-	struct meson_host *host = mmc_priv(mmc);
+	struct meson_host *host = meson_mmc_to_host(mmc);
 	u32 reg_irqen = IRQ_EN_MASK;
 
 	if (enable)
@@ -1078,7 +1105,7 @@ static void meson_mmc_cfg_init(struct meson_host *host)
 
 static int meson_mmc_card_busy(struct mmc_host *mmc)
 {
-	struct meson_host *host = mmc_priv(mmc);
+	struct meson_host *host = meson_mmc_to_host(mmc);
 	u32 regval;
 
 	regval = readl(host->regs + SD_EMMC_STATUS);
@@ -1113,7 +1140,7 @@ static int meson_mmc_voltage_switch(struct mmc_host *mmc, struct mmc_ios *ios)
 
 static void meson_mmc_enable_sdio_irq(struct mmc_host *mmc, int enable)
 {
-	struct meson_host *host = mmc_priv(mmc);
+	struct meson_host *host = meson_mmc_to_host(mmc);
 	unsigned long flags;
 
 	spin_lock_irqsave(&host->lock, flags);
@@ -1143,15 +1170,23 @@ static int meson_mmc_probe(struct platform_device *pdev)
 {
 	struct resource *res;
 	struct meson_host *host;
+	struct meson_slot *slot;
 	struct mmc_host *mmc;
 	struct clk *core_clk;
 	int cd_irq, ret;
 
-	mmc = devm_mmc_alloc_host(&pdev->dev, sizeof(struct meson_host));
+	host = devm_kzalloc(&pdev->dev, sizeof(*host), GFP_KERNEL);
+	if (!host)
+		return -ENOMEM;
+
+	mmc = devm_mmc_alloc_host(&pdev->dev, sizeof(*slot));
 	if (!mmc)
 		return -ENOMEM;
-	host = mmc_priv(mmc);
+	slot = mmc_priv(mmc);
+	slot->mmc = mmc;
+	slot->host = host;
 	host->mmc = mmc;
+	host->cur_slot = slot;
 	host->dev = &pdev->dev;
 	dev_set_drvdata(&pdev->dev, host);
 
@@ -1195,28 +1230,28 @@ static int meson_mmc_probe(struct platform_device *pdev)
 	if (IS_ERR(host->pinctrl))
 		return PTR_ERR(host->pinctrl);
 
-	host->pins_clk_gate = pinctrl_lookup_state(host->pinctrl,
+	slot->pins_clk_gate = pinctrl_lookup_state(host->pinctrl,
 						   "clk-gate");
-	if (IS_ERR(host->pins_clk_gate)) {
+	if (IS_ERR(slot->pins_clk_gate)) {
 		dev_warn(&pdev->dev,
 			 "can't get clk-gate pinctrl, using clk_stop bit\n");
-		host->pins_clk_gate = NULL;
+		slot->pins_clk_gate = NULL;
 	}
 
-	host->pins_active = pinctrl_lookup_state(host->pinctrl,
+	slot->pins_active = pinctrl_lookup_state(host->pinctrl,
 						 PINCTRL_STATE_DEFAULT);
-	if (IS_ERR(host->pins_active))
-		host->pins_active = NULL;
+	if (IS_ERR(slot->pins_active))
+		slot->pins_active = NULL;
 
-	host->pins_sdio_transfer = pinctrl_lookup_state(host->pinctrl,
+	slot->pins_sdio_transfer = pinctrl_lookup_state(host->pinctrl,
 							"sdio-transfer");
-	host->pins_sdio_transfer_clk_gate =
+	slot->pins_sdio_transfer_clk_gate =
 		pinctrl_lookup_state(host->pinctrl,
 				     "sdio-transfer-clk-gate");
-	if (IS_ERR(host->pins_sdio_transfer) ||
-	    IS_ERR(host->pins_sdio_transfer_clk_gate)) {
-		host->pins_sdio_transfer = NULL;
-		host->pins_sdio_transfer_clk_gate = NULL;
+	if (IS_ERR(slot->pins_sdio_transfer) ||
+	    IS_ERR(slot->pins_sdio_transfer_clk_gate)) {
+		slot->pins_sdio_transfer = NULL;
+		slot->pins_sdio_transfer_clk_gate = NULL;
 	}
 
 	core_clk = devm_clk_get_enabled(&pdev->dev, "core");
